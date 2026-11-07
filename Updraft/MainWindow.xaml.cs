@@ -431,7 +431,7 @@ public sealed partial class MainWindow : Window
     private void DAction_Click(object sender, RoutedEventArgs e)
     {
         if (_running || PkgList.SelectedItem is not Pkg p) return;
-        StartRun(new[] { p });
+        _ = StartRun(new[] { p });
     }
 
     // ---------- skip & pin ----------
@@ -520,18 +520,48 @@ public sealed partial class MainWindow : Window
     private void Install_Click(object sender, RoutedEventArgs e)
     {
         if (_running) { _runCts?.Cancel(); SetStatus("Cancelling…", Amber); return; }
-        StartRun(Selected.ToList());
+        _ = StartRun(Selected.ToList());
     }
 
     // Elevation can't be combined with captured output, so "Run as administrator" keeps using the terminal.
-    private void StartRun(IReadOnlyList<Pkg> pkgs)
+    private async Task StartRun(IReadOnlyList<Pkg> pkgs)
     {
+        if (pkgs.Count == 0) return;
+        if (!await ConfirmUninstallAsync(pkgs)) return;
         if (AdminChk.IsChecked == true)
         {
             RunInTerminal(pkgs);
             return;
         }
-        _ = RunInAppAsync(pkgs);
+        await RunInAppAsync(pkgs);
+    }
+
+    // Uninstalling can't be undone, so always ask first and make Cancel the default.
+    private async Task<bool> ConfirmUninstallAsync(IReadOnlyList<Pkg> pkgs)
+    {
+        if (_mode != "installed") return true;
+
+        const int shown = 12;
+        var list = new StackPanel { Spacing = 2 };
+        foreach (var p in pkgs.Take(shown))
+            list.Children.Add(new TextBlock { Text = "•  " + p.Name, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (pkgs.Count > shown)
+            list.Children.Add(new TextBlock { Text = $"…and {pkgs.Count - shown} more", Opacity = 0.65 });
+
+        var body = new StackPanel { Spacing = 12, MinWidth = 340 };
+        body.Children.Add(new TextBlock { Text = "This removes the app and can't be undone from Updraft.", TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new ScrollViewer { MaxHeight = 260, Content = list });
+
+        var dlg = new ContentDialog
+        {
+            Title = pkgs.Count == 1 ? $"Uninstall {pkgs[0].Name}?" : $"Uninstall {pkgs.Count} apps?",
+            Content = body,
+            PrimaryButtonText = "Uninstall",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+        return await dlg.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private async Task RunInAppAsync(IReadOnlyList<Pkg> pkgs)
@@ -554,6 +584,7 @@ public sealed partial class MainWindow : Window
         foreach (var p in safe) { p.ResetRun(); p.SetState(RunState.Queued, "Queued"); }
 
         int ok = 0, failed = 0, cancelled = 0;
+        var removed = new List<Pkg>();   // uninstalled apps: they leave the Installed list once the run ends
         for (int i = 0; i < safe.Count; i++)
         {
             var p = safe[i];
@@ -576,9 +607,10 @@ public sealed partial class MainWindow : Window
                 }
                 else if (WingetService.IsSuccess(code))
                 {
-                    p.SetState(RunState.Succeeded, code == 0 ? "Done" : "Already up to date");
+                    p.SetState(RunState.Succeeded, code != 0 ? "Already up to date" : mode == "installed" ? "Uninstalled" : "Done");
                     p.IsSelected = false;
                     ok++;
+                    if (mode == "installed" && code == 0) removed.Add(p);
                 }
                 else
                 {
@@ -599,7 +631,17 @@ public sealed partial class MainWindow : Window
         _runCts = null;
         SetRunLock(false);
 
+        if (removed.Count > 0 && _mode == mode)
+        {
+            // Dropped in one go at the end (not one by one) so rows don't jump around while the run is in progress.
+            foreach (var p in removed) _all.Remove(p);
+            ApplyFilter();
+            int pinned = _all.Count(p => p.IsPinned);
+            Subtitle.Text = pinned > 0 ? $"{_all.Count} packages  ·  {pinned} pinned" : $"{_all.Count} packages";
+        }
+
         var parts = new List<string>();
+        if (safe.Count < pkgs.Count) parts.Add($"{pkgs.Count - safe.Count} skipped (no usable package id)");
         if (ok > 0) parts.Add($"{ok} succeeded");
         if (failed > 0) parts.Add($"{failed} failed");
         if (cancelled > 0) parts.Add($"{cancelled} cancelled");
@@ -639,7 +681,12 @@ public sealed partial class MainWindow : Window
         Clipboard.Flush();
     }
 
-    private void Run_Click(object sender, RoutedEventArgs e) => RunInTerminal(Selected.ToList());
+    private async void Run_Click(object sender, RoutedEventArgs e)
+    {
+        var sel = Selected.ToList();
+        if (sel.Count == 0 || !await ConfirmUninstallAsync(sel)) return;
+        RunInTerminal(sel);
+    }
 
     private void RunInTerminal(IReadOnlyList<Pkg> pkgs)
     {
