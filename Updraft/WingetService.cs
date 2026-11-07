@@ -41,7 +41,11 @@ public static class WingetService
     public static string Command(Pkg p, string mode)
     {
         var v = Verb(mode);
-        var flags = v == "uninstall" ? "" : " --accept-package-agreements --accept-source-agreements";
+        var s = AppSettings.Current;
+        var flags = new StringBuilder();
+        if (v != "uninstall" && s.AcceptAgreements) flags.Append(" --accept-package-agreements --accept-source-agreements");
+        if (s.InstallMode == "silent") flags.Append(" --silent");
+        else if (s.InstallMode == "interactive") flags.Append(" --interactive");
         return $"winget {v} --id {p.Id} -e{flags}";
     }
 

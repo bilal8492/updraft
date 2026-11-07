@@ -28,7 +28,72 @@ public sealed partial class MainWindow : Window
         Title = "Updraft";
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "updraft.ico");
         if (File.Exists(icon)) AppWindow.SetIcon(icon);
+        AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
+        ApplyTheme();
         ((FrameworkElement)Content).Loaded += (_, _) => Nav.SelectedItem = NavUp;
+    }
+
+    private NavigationViewItem? _prevNav;
+    private bool _restoringNav;
+
+    private void ApplyTheme() => ((FrameworkElement)Content).RequestedTheme = AppSettings.Current.Theme switch
+    {
+        "light" => ElementTheme.Light,
+        "dark" => ElementTheme.Dark,
+        _ => ElementTheme.Default,
+    };
+
+    private async Task ShowSettingsAsync()
+    {
+        var s = AppSettings.Current;
+
+        static ComboBox Combo(string[] labels, int selected) =>
+            new() { ItemsSource = labels, SelectedIndex = selected, MinWidth = 260 };
+
+        string[] modes = { "default", "silent", "interactive" };
+        string[] terms = { "auto", "wt", "powershell" };
+        string[] themes = { "system", "light", "dark" };
+
+        var mode = Combo(new[] { "Default (let winget decide)", "Silent (no installer windows)", "Interactive (show installer windows)" },
+            Math.Max(0, Array.IndexOf(modes, s.InstallMode)));
+        var term = Combo(new[] { "Automatic (Windows Terminal, else PowerShell)", "Windows Terminal", "PowerShell" },
+            Math.Max(0, Array.IndexOf(terms, s.Terminal)));
+        var theme = Combo(new[] { "Use system setting", "Light", "Dark" },
+            Math.Max(0, Array.IndexOf(themes, s.Theme)));
+        var agree = new CheckBox { Content = "Automatically accept package and source agreements", IsChecked = s.AcceptAgreements };
+        var admin = new CheckBox { Content = "Run as administrator by default", IsChecked = s.DefaultAdmin };
+
+        var panel = new StackPanel { Spacing = 14, MinWidth = 360 };
+        panel.Children.Add(new StackPanel { Spacing = 4, Children = { new TextBlock { Text = "Installer mode", Opacity = 0.65 }, mode } });
+        panel.Children.Add(agree);
+        panel.Children.Add(admin);
+        panel.Children.Add(new StackPanel { Spacing = 4, Children = { new TextBlock { Text = "Terminal", Opacity = 0.65 }, term } });
+        panel.Children.Add(new StackPanel { Spacing = 4, Children = { new TextBlock { Text = "Theme", Opacity = 0.65 }, theme } });
+
+        var dlg = new ContentDialog
+        {
+            Title = "Settings",
+            Content = panel,
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot,
+        };
+        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
+        new AppSettings
+        {
+            InstallMode = modes[Math.Max(0, mode.SelectedIndex)],
+            AcceptAgreements = agree.IsChecked == true,
+            DefaultAdmin = admin.IsChecked == true,
+            Terminal = terms[Math.Max(0, term.SelectedIndex)],
+            Theme = themes[Math.Max(0, theme.SelectedIndex)],
+        }.Save();
+
+        AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
+        ApplyTheme();
+        ShowDetail(PkgList.SelectedItem as Pkg);   // refresh the command preview with the new flags
+        SetStatus("Settings saved", Green);
     }
 
     // ---------- helpers ----------
@@ -217,7 +282,17 @@ public sealed partial class MainWindow : Window
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (args.IsSettingsSelected)
+        {
+            // Settings is a dialog, not a page: show it and put the selection back where it was.
+            _restoringNav = true;
+            Nav.SelectedItem = _prevNav ?? NavUp;
+            _ = ShowSettingsAsync();
+            return;
+        }
+        if (_restoringNav) { _restoringNav = false; return; }   // selection put back after Settings: no reload
         if (args.SelectedItem is not NavigationViewItem item) return;
+        _prevNav = item;
         _mode = (string)item.Tag;
         if (!_jumpToDiscover) Search.Text = "";
         _jumpToDiscover = false;
@@ -368,8 +443,14 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            try { Launch("wt.exe", "powershell.exe " + psArgs); }
-            catch (Win32Exception ex) when (ex.NativeErrorCode != 1223) { Launch("powershell.exe", psArgs); }
+            var term = AppSettings.Current.Terminal;
+            if (term == "powershell") Launch("powershell.exe", psArgs);
+            else if (term == "wt") Launch("wt.exe", "powershell.exe " + psArgs);
+            else
+            {
+                try { Launch("wt.exe", "powershell.exe " + psArgs); }
+                catch (Win32Exception ex) when (ex.NativeErrorCode != 1223) { Launch("powershell.exe", psArgs); }
+            }
             SetStatus($"Terminal opened for {pkgs.Count} package(s)", Green);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
