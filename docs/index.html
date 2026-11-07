@@ -3,243 +3,312 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Updraft: a simple UI for winget</title>
-<meta name="description" content="Updraft is a free, open-source, native Windows app that shows every winget update, lets you tick the ones you want, and installs them in one click. x64 and ARM64.">
-<meta name="theme-color" content="#0b1020">
+<meta name="description" content="Updraft is a free, open-source Windows app that lists every winget update, lets you tick the ones you want, and installs them. Native WinUI 3, x64 and ARM64.">
 <link rel="icon" type="image/png" href="assets/icon.png">
 <meta property="og:title" content="Updraft: a simple UI for winget">
-<meta property="og:description" content="Scan updates, tick the apps you want, install in one click. Native, open source, x64 + ARM64.">
+<meta property="og:description" content="Scan updates, tick the apps you want, install. Native, open source, x64 and ARM64.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://bilal8492.github.io/updraft/assets/screenshot.png">
 <meta property="og:url" content="https://bilal8492.github.io/updraft/">
 <style>
+/* Layout: one left-aligned column grid. Sections are a narrow label column plus a wide content column,
+   like a ledger. The recurring motif is winget's own output: version → version in monospace. */
 :root{
-  --bg:#f6f7fb; --bg2:#ffffff; --fg:#0f172a; --muted:#5b6478; --line:#e3e7f0;
-  --a1:#6366f1; --a2:#0ea5e9; --card:#ffffff; --shadow:0 30px 80px -30px rgba(40,60,140,.35);
-  --term:#0d1117; --termfg:#d7dae0; --chip:#eef1ff; --ok:#16a34a;
+  --bg:#F2F4F6; --surface:#FFFFFF; --ink:#0E1A24; --muted:#52606C; --line:#D3DAE1;
+  --accent:#0B5FC9; --accent-ink:#FFFFFF; --good:#18794A;
+  --term:#0F1720; --term-ink:#D8E0E8; --term-dim:#7F8E9B; --term-hi:#7FD1A6;
+  --display:"Bahnschrift","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --body:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,SFMono-Regular,monospace;
+  --gutter:max(16px, env(safe-area-inset-left, 0px));
+  color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
-  :root{ --bg:#0b1020; --bg2:#0f1630; --fg:#eef1fb; --muted:#9aa5c0; --line:#1f2947; --card:#121a36;
-    --shadow:0 30px 80px -30px rgba(0,0,0,.8); --chip:#1a2350; }
+  :root{
+    --bg:#0B1117; --surface:#111A22; --ink:#E6ECF1; --muted:#8FA0AE; --line:#22303B;
+    --accent:#5AA2FF; --accent-ink:#06121F; --good:#4FC48B;
+    --term:#070C11; --term-ink:#D8E0E8; --term-dim:#6F7E8B; --term-hi:#7FD1A6;
+    color-scheme:dark;
+  }
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 "Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);-webkit-font-smoothing:antialiased}
 a{color:inherit}
-.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
-.grad{background:linear-gradient(100deg,var(--a1),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:var(--gutter) max(16px, env(safe-area-inset-right, 0px))}
+code,.mono{font-family:var(--mono);font-size:.88em}
+code{background:color-mix(in srgb,var(--ink) 7%,transparent);padding:.1em .4em;border-radius:3px}
 
-/* nav */
-nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg) 78%,transparent);border-bottom:1px solid var(--line)}
-nav .wrap{display:flex;align-items:center;gap:20px;height:60px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;font-size:18px}
-.brand img{width:28px;height:28px}
-nav .links{margin-left:auto;display:flex;gap:22px;align-items:center}
-nav .links a{text-decoration:none;color:var(--muted);font-size:15px}
-nav .links a:hover{color:var(--fg)}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;font-weight:600;text-decoration:none;border:1px solid var(--line);background:var(--card);color:var(--fg);transition:transform .15s,box-shadow .15s}
-.btn:hover{transform:translateY(-1px)}
-.btn.primary{background:linear-gradient(100deg,var(--a1),var(--a2));color:#fff;border:0;box-shadow:0 10px 30px -10px var(--a1)}
-@media(max-width:700px){nav .links a:not(.btn){display:none}}
+/* header */
+header.top{border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:24px;min-height:56px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:600 18px var(--display);letter-spacing:.01em}
+.brand img{width:24px;height:24px;display:block}
+.top nav{margin-left:auto;display:flex;gap:24px;font-size:15px}
+.top nav a{text-decoration:none;color:var(--muted)}
+.top nav a:hover{color:var(--ink)}
+@media(max-width:640px){.top nav a:not(:last-child){display:none}}
 
 /* hero */
-.hero{position:relative;overflow:hidden;padding:72px 0 40px}
-.hero::before{content:"";position:absolute;inset:-200px -10% auto -10%;height:700px;
-  background:radial-gradient(600px 300px at 20% 20%,color-mix(in srgb,var(--a1) 35%,transparent),transparent 70%),
-             radial-gradient(600px 300px at 80% 10%,color-mix(in srgb,var(--a2) 30%,transparent),transparent 70%);z-index:-1}
-.pill{display:inline-flex;gap:8px;align-items:center;padding:6px 14px;border-radius:99px;background:var(--chip);font-size:13px;font-weight:600;color:var(--a1)}
-h1{font-size:clamp(38px,6vw,68px);line-height:1.05;letter-spacing:-.03em;margin:18px 0 16px}
-.lead{font-size:clamp(17px,2vw,21px);color:var(--muted);max-width:640px;margin:0 0 28px}
-.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-.sub{margin-top:14px;font-size:14px;color:var(--muted)}
-
-/* real screenshot */
-.shot{margin:54px auto 0;max-width:1060px;border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;background:var(--bg2)}
+.hero{padding-block:72px 0}
+.kicker{font:13px var(--mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 22px}
+.kicker b{color:var(--ink);font-weight:600}
+.kicker .to{color:var(--good)}
+h1{font:600 clamp(42px,7vw,84px)/.98 var(--display);letter-spacing:-.025em;margin:0 0 24px;max-width:15ch;text-wrap:balance}
+.lead{font-size:clamp(17px,1.6vw,20px);color:var(--muted);max-width:52ch;margin:0 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center}
+.btn{display:inline-block;background:var(--accent);color:var(--accent-ink);font-weight:600;text-decoration:none;padding:13px 22px;border-radius:4px}
+.btn:hover{filter:brightness(1.08)}
+.textlink{color:var(--ink);text-underline-offset:4px;text-decoration-thickness:1px}
+.textlink:hover{color:var(--accent)}
+.meta{margin:18px 0 0;font:13px var(--mono);color:var(--muted)}
+.shot{margin:56px 0 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
 .shot img{display:block;width:100%;height:auto}
 
-/* app mockup */
-.app{margin:0 auto;border-radius:16px;border:1px solid var(--line);background:var(--bg2);box-shadow:var(--shadow);overflow:hidden;max-width:1060px}
-.titlebar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
-.titlebar img{width:16px;height:16px}
-.titlebar .dots{margin-left:auto;letter-spacing:6px}
-.body{display:grid;grid-template-columns:190px 1fr 330px;min-height:420px}
-.side{border-right:1px solid var(--line);padding:14px 10px;background:color-mix(in srgb,var(--bg) 60%,var(--bg2))}
-.search{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--muted);margin-bottom:12px;background:var(--bg2)}
-.nav{display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:8px;font-size:14px;color:var(--muted)}
-.nav.on{background:color-mix(in srgb,var(--a1) 14%,transparent);color:var(--fg);font-weight:600;box-shadow:inset 3px 0 0 var(--a1)}
-.list{padding:16px 6px 10px}
-.list h3{margin:0 14px 2px;font-size:19px}
-.list .cnt{margin:0 14px 10px;font-size:13px;color:var(--muted)}
-.row{display:flex;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--line);cursor:pointer;user-select:none;transition:background .12s}
-.row:hover{background:color-mix(in srgb,var(--a1) 7%,transparent)}
-.row.sel{background:color-mix(in srgb,var(--a1) 11%,transparent)}
-.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--muted);flex:none;display:grid;place-items:center;color:#fff;font-size:12px;transition:.12s}
-.row.sel .cb{background:var(--a1);border-color:var(--a1)}
-.row.sel .cb::after{content:"✓"}
-.nm{font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center}
-.tag{font-size:10px;border:1px solid var(--a2);color:var(--a2);border-radius:99px;padding:0 7px;font-weight:600}
-.meta{font-size:12px;color:var(--muted)}
-.detail{border-left:1px solid var(--line);padding:18px;display:flex;flex-direction:column;gap:10px;background:color-mix(in srgb,var(--bg) 50%,var(--bg2))}
-.detail h4{margin:0;font-size:19px}
-.detail p{margin:0;font-size:13px;color:var(--muted)}
-.kv{display:grid;grid-template-columns:96px 1fr;gap:4px 8px;font-size:12.5px}
-.kv b{font-weight:600}
-.kv span{color:var(--muted)}
-.term{background:var(--term);color:var(--termfg);border-radius:10px;padding:12px 14px;font:12px/1.55 "Cascadia Mono",Consolas,monospace;overflow:auto;min-height:74px;white-space:pre-wrap;word-break:break-all}
-.term .c{color:#7ee787}.term .d{color:#8b949e}
-.bar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
-.bar .sp{flex:1}
-.run{background:linear-gradient(100deg,var(--a1),var(--a2));color:#fff;border:0;border-radius:8px;padding:8px 16px;font:600 13px inherit;font-family:inherit;cursor:pointer;opacity:.45;transition:.15s}
-.run.on{opacity:1}
-.hint{text-align:center;color:var(--muted);font-size:13px;margin-top:14px}
-@media(max-width:900px){.body{grid-template-columns:1fr}.side,.detail{display:none}}
+/* sections: label column + content column */
+.sec{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:24px 64px;padding-block:88px;border-top:1px solid var(--line);margin-top:88px}
+.sec:first-of-type{margin-top:88px}
+.sec h2{font:600 clamp(28px,3.6vw,40px)/1.08 var(--display);letter-spacing:-.015em;margin:0 0 14px;text-wrap:balance}
+.sec .label{font:12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+.sec .intro p{color:var(--muted);margin:0 0 12px;max-width:40ch}
+@media(max-width:860px){.sec{grid-template-columns:minmax(0,1fr);padding-block:56px;margin-top:56px}}
 
-/* sections */
-section{padding:84px 0}
-.eyebrow{color:var(--a1);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase}
-h2{font-size:clamp(28px,4vw,42px);letter-spacing:-.02em;line-height:1.15;margin:10px 0 14px}
-.sec-lead{color:var(--muted);max-width:620px;margin:0 0 40px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;transition:transform .15s,box-shadow .15s}
-.card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
-.ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;margin-bottom:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--a1) 22%,transparent),color-mix(in srgb,var(--a2) 22%,transparent))}
-.card h3{margin:0 0 6px;font-size:18px}
-.card p{margin:0;color:var(--muted);font-size:15px}
-.steps{counter-reset:s;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
-.step{position:relative;padding:26px;border-radius:16px;border:1px solid var(--line);background:var(--card)}
-.step::before{counter-increment:s;content:counter(s);position:absolute;top:-16px;left:22px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--a1),var(--a2))}
-.step h3{margin:8px 0 6px}.step p{margin:0;color:var(--muted)}
-.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:8px}
-.dl .card{display:flex;flex-direction:column;gap:10px}
-.dl .card .btn{margin-top:auto;justify-content:center}
-.dl .alt{text-align:center;font-size:14px;color:var(--muted)}
-code{font-family:"Cascadia Mono",Consolas,monospace;font-size:.9em;background:var(--chip);padding:2px 7px;border-radius:6px}
-.dark-band{background:var(--bg2);border-block:1px solid var(--line)}
-details{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px 20px;margin-bottom:10px}
-summary{cursor:pointer;font-weight:600}
-details p{color:var(--muted);margin:10px 0 0}
-footer{padding:40px 0 60px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
-footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center}
+/* terminal blocks */
+.term{background:var(--term);color:var(--term-ink);border-radius:6px;padding:16px 18px;font:13px/1.65 var(--mono);overflow-x:auto;white-space:pre}
+.term .dim{color:var(--term-dim)}
+.term .hi{color:var(--term-hi)}
+.cap{font:12px var(--mono);color:var(--muted);margin:22px 0 8px;display:flex;gap:10px;align-items:baseline}
+.cap:first-child{margin-top:0}
+.cap b{color:var(--ink);font-weight:600}
+
+/* feature ledger */
+dl.ledger{margin:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.ledger .row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:8px 32px;padding:18px 0;border-bottom:1px solid var(--line)}
+.ledger .row:first-child{padding-top:0}
+.ledger dt{font-weight:600}
+.ledger dd{margin:0;color:var(--muted)}
+@media(max-width:620px){.ledger .row{grid-template-columns:minmax(0,1fr)}}
+
+/* demo app */
+.demo-wrap{grid-column:1/-1}
+.app{border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.titlebar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.titlebar img{width:15px;height:15px}
+.titlebar .win{margin-left:auto;font-family:var(--mono);letter-spacing:.3em}
+.appbody{display:grid;grid-template-columns:176px minmax(0,1fr) 320px;min-height:400px}
+.side{border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.side .search{border:1px solid var(--line);border-radius:4px;padding:7px 10px;font-size:13px;color:var(--muted);margin-bottom:10px}
+.side .nav{padding:8px 10px;border-radius:4px;font-size:14px;color:var(--muted)}
+.side .nav.on{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--ink);font-weight:600;box-shadow:inset 2px 0 0 var(--accent)}
+.plist{padding:16px 0 8px;min-width:0}
+.plist h3{margin:0 16px 2px;font:600 20px var(--display)}
+.plist .cnt{margin:0 16px 10px;font-size:13px;color:var(--muted)}
+.row2{display:flex;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid var(--line);cursor:pointer;user-select:none;width:100%;background:none;border-inline:0;border-bottom:0;text-align:left;color:inherit;font:inherit}
+.row2:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.row2[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.box{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;flex:none;display:grid;place-items:center;font-size:11px;color:var(--accent-ink);line-height:1}
+.row2[aria-pressed="true"] .box{background:var(--accent);border-color:var(--accent)}
+.row2[aria-pressed="true"] .box::after{content:"\2713"}
+.row2 .nm{font-weight:600;font-size:14px;display:block}
+.row2 .mt{font:12px var(--mono);color:var(--muted);display:block;overflow-wrap:anywhere}
+.row2 .mt .to{color:var(--good)}
+.detail{border-left:1px solid var(--line);padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.detail h4{margin:0;font:600 20px var(--display)}
+.detail p{margin:0;font-size:13px;color:var(--muted)}
+.kv{display:grid;grid-template-columns:84px minmax(0,1fr);gap:4px 8px;font-size:13px}
+.kv span{color:var(--muted)}
+.kv b{font-weight:600;font-family:var(--mono);font-size:12.5px}
+.detail .term{font-size:11.5px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:72px}
+.appbar{display:flex;align-items:center;gap:14px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);flex-wrap:wrap}
+.appbar .sp{flex:1}
+.runbtn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:4px;padding:8px 16px;font:600 13px var(--body);opacity:.4;cursor:default}
+.runbtn.on{opacity:1;cursor:pointer}
+.note{font:12px var(--mono);color:var(--muted);margin:12px 0 0}
+@media(max-width:900px){.appbody{grid-template-columns:minmax(0,1fr)}.side,.detail{display:none}}
+
+/* downloads */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table.dl{border-collapse:collapse;width:100%;min-width:560px}
+.dl th,.dl td{text-align:left;padding:16px 18px;border-bottom:1px solid var(--line);vertical-align:top}
+.dl tr:last-child td{border-bottom:0}
+.dl th{font:12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:400;background:color-mix(in srgb,var(--ink) 3%,transparent)}
+.dl td small{display:block;color:var(--muted);font-size:13px}
+.dl a.file{font:600 13.5px var(--mono);color:var(--accent);text-underline-offset:3px}
+.dl .size{font:12px var(--mono);color:var(--muted);display:block;margin-top:2px}
+.fine{color:var(--muted);font-size:14px;max-width:62ch;margin:20px 0 0}
+.fine + .fine{margin-top:10px}
+
+/* faq */
+details{border-bottom:1px solid var(--line);padding:16px 0}
+details:first-of-type{padding-top:0}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font:400 20px/1 var(--mono);color:var(--muted)}
+details[open] summary::after{content:"\2212"}
+details p{color:var(--muted);margin:10px 0 0;max-width:60ch}
+
+footer{border-top:1px solid var(--line);padding-block:32px 56px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:center}
 footer .sp{flex:1}
-footer a{text-decoration:none}footer a:hover{color:var(--fg)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}html{scroll-behavior:auto}}
+footer a{text-decoration:none}footer a:hover{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
 
-<nav><div class="wrap">
+<header class="top"><div class="wrap">
   <a class="brand" href="#"><img src="assets/icon.png" alt="">Updraft</a>
-  <div class="links">
-    <a href="#features">Features</a><a href="#try">Try it</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
+  <nav>
+    <a href="#features">Features</a>
+    <a href="#try">Try it</a>
+    <a href="#faq">FAQ</a>
     <a href="https://github.com/bilal8492/updraft">GitHub</a>
-    <a class="btn primary" href="#download">Download</a>
-  </div>
-</div></nav>
-
-<header class="hero"><div class="wrap">
-  <span class="pill">✦ Free &amp; open source · Windows 10 / 11 · x64 + ARM64</span>
-  <h1>Update every app on Windows<br><span class="grad">in a single click.</span></h1>
-  <p class="lead">Updraft is a small, native front-end for <code>winget</code>. It finds every app with a newer version, you tick the ones you want, and it installs them. Or hands you the script.</p>
-  <div class="cta">
-    <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">⬇ Download installer (x64)</a>
-    <a class="btn" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe">⬇ ARM64</a>
-    <a class="btn" href="https://github.com/bilal8492/updraft">★ GitHub</a>
-  </div>
-  <p class="sub">Windows 10 / 11 · No account · no telemetry · MIT licensed</p>
-
-  <figure class="shot">
-    <img src="assets/screenshot.png" width="1165" height="751" alt="Updraft showing available updates, with a details pane for Git and the Run in terminal button">
-  </figure>
+  </nav>
 </div></header>
 
-<section id="try"><div class="wrap">
-  <div class="eyebrow">Try it</div>
-  <h2>Build your update script in seconds.</h2>
-  <p class="sec-lead">This is a live mock of the app. Click rows to tick apps and watch the exact <code>winget</code> commands appear, the same ones Updraft copies or runs for you.</p>
+<main>
+<section class="hero"><div class="wrap">
+  <p class="kicker mono"><b>Git.Git</b><span>2.53.0</span><span class="to">&rarr; 2.56.0.4</span><span>&middot; 11 more waiting</span></p>
+  <h1>Update your Windows apps from one list.</h1>
+  <p class="lead">Updraft reads <code>winget upgrade</code> for you. Tick the apps you want, then copy the commands or let Updraft run them in a terminal.</p>
+  <div class="cta">
+    <a class="btn" id="cta" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">Download installer (x64)</a>
+    <a class="textlink" href="#download">ARM64, portable zip</a>
+    <a class="textlink" href="https://github.com/bilal8492/updraft">Source on GitHub</a>
+  </div>
+  <p class="meta">Windows 10 1809+ &middot; MIT licence &middot; no account, no telemetry</p>
 
-  <!-- interactive mockup -->
-  <div class="app" aria-label="Updraft app preview">
-    <div class="titlebar"><img src="assets/icon.png" alt=""> Updraft <span class="dots">– ▢ ✕</span></div>
-    <div class="body">
-      <div class="side">
-        <div class="search">⌕ Filter this list</div>
-        <div class="nav on">⬆ Upgrades</div>
-        <div class="nav">▤ Installed</div>
-        <div class="nav">⌕ Discover</div>
+  <figure class="shot">
+    <img src="assets/screenshot.png" width="1165" height="751" alt="Updraft listing eleven available updates with a details pane for Git showing version, publisher, licence and homepage">
+  </figure>
+</div></section>
+
+<div class="wrap">
+
+<section class="sec" id="why">
+  <div class="intro">
+    <p class="label">What it replaces</p>
+    <h2>The same winget, without retyping package ids.</h2>
+    <p>Updraft does not reimplement anything. It runs the winget you already have and turns the table into something you can click.</p>
+  </div>
+  <div>
+    <p class="cap"><b>You read this</b><span>winget upgrade</span></p>
+<div class="term"><span class="dim">Name             Id                 Version   Available</span>
+<span class="dim">----------------------------------------------------------</span>
+Git              Git.Git            2.53.0    2.56.0.4
+Node.js          OpenJS.NodeJS.LTS  24.11.0   26.13.0
+Python Launcher  Python.Launcher    &lt; 3.14.7  3.15.2</div>
+    <p class="cap"><b>Updraft writes this</b><span>for the rows you ticked</span></p>
+<div class="term"><span class="hi">winget</span> upgrade --id Git.Git -e --accept-package-agreements --accept-source-agreements
+<span class="hi">winget</span> upgrade --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements</div>
+  </div>
+</section>
+
+<section class="sec" id="features">
+  <div class="intro">
+    <p class="label">Features</p>
+    <h2>One window, one job.</h2>
+    <p>Everything below is in v0.1. The roadmap lives in the README.</p>
+  </div>
+  <dl class="ledger">
+    <div class="row"><dt>Scans on launch</dt><dd>Lists every app with a newer version, installed and available side by side.</dd></div>
+    <div class="row"><dt>You choose what updates</dt><dd>Tick apps one by one or select all. Filter the list as you type. Nothing runs until you press the button.</dd></div>
+    <div class="row"><dt>Copy the script</dt><dd>Gets the exact <code>winget</code> commands for your selection, ready to paste into any terminal.</dd></div>
+    <div class="row"><dt>Run in terminal</dt><dd>Opens Windows Terminal and installs the selection one after another. Optional &ldquo;Run as administrator&rdquo;.</dd></div>
+    <div class="row"><dt>Installed and Discover</dt><dd>Browse what is on the PC, or search the whole winget catalogue and install something new.</dd></div>
+    <div class="row"><dt>Details pane</dt><dd>Description, publisher, licence and homepage for the selected package, from <code>winget show</code>.</dd></div>
+    <div class="row"><dt>Native WinUI 3</dt><dd>Fluent controls, Mica backdrop, follows your light or dark theme. Builds for x64 and ARM64.</dd></div>
+    <div class="row"><dt>Stays local</dt><dd>No account, no telemetry, no network calls of its own. It only talks to your winget.</dd></div>
+  </dl>
+</section>
+
+<section class="sec" id="try">
+  <div class="intro">
+    <p class="label">Try it</p>
+    <h2>Build a script by clicking.</h2>
+    <p>A mock of the app with sample data. Click rows and watch the command list change. Nothing is installed.</p>
+  </div>
+  <div class="demo-wrap">
+    <div class="app" aria-label="Updraft demo with sample data">
+      <div class="titlebar"><img src="assets/icon.png" alt=""> Updraft <span class="win">&minus; &#9633; &times;</span></div>
+      <div class="appbody">
+        <div class="side">
+          <div class="search">Filter this list</div>
+          <div class="nav on">Upgrades</div>
+          <div class="nav">Installed</div>
+          <div class="nav">Discover</div>
+        </div>
+        <div class="plist">
+          <h3>Upgrades</h3><div class="cnt" id="cnt">6 updates available</div>
+          <div id="rows"></div>
+        </div>
+        <div class="detail">
+          <h4 id="dn">Git</h4>
+          <p id="dd">Distributed version control system.</p>
+          <div class="kv"><span>Installed</span><b id="di">2.53.0</b><span>Latest</span><b id="dl">2.56.0.4</b><span>Source</span><b>winget</b></div>
+          <div class="term" id="term"></div>
+        </div>
       </div>
-      <div class="list">
-        <h3>Upgrades</h3><div class="cnt" id="cnt">6 updates available</div>
-        <div id="rows"></div>
-      </div>
-      <div class="detail">
-        <h4 id="dn">Git</h4>
-        <p id="dd">Distributed version control system.</p>
-        <div class="kv"><span>Installed</span><b id="di">2.53.0</b><span>Latest</span><b id="dl">2.56.0</b><span>Source</span><b>winget</b></div>
-        <div class="term" id="term"></div>
+      <div class="appbar">
+        <span id="selcount">0 selected</span><span class="sp"></span>
+        <button class="runbtn" id="run" type="button" tabindex="-1">Run in terminal</button>
       </div>
     </div>
-    <div class="bar">
-      <span id="selcount">0 selected</span><span class="sp"></span>
-      <span>☐ Run as administrator</span>
-      <button class="run" id="run" type="button" tabindex="-1">▶ Run in terminal</button>
+    <p class="note">Sample data. Only Git, Node.js and Python Launcher versions are real.</p>
+  </div>
+</section>
+
+<section class="sec" id="download">
+  <div class="intro">
+    <p class="label">Download</p>
+    <h2>Pick the build for your processor.</h2>
+    <p>The installer sets up for your user without an admin prompt. The zip is portable. Both bundle the .NET runtime and Windows App SDK.</p>
+  </div>
+  <div>
+    <div class="tablewrap">
+      <table class="dl">
+        <thead><tr><th>Platform</th><th>Installer</th><th>Portable</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Windows x64<small>Intel, AMD</small></td>
+            <td><a class="file" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">Updraft-win-x64-setup.exe</a><span class="size">61 MB</span></td>
+            <td><a class="file" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64.zip">Updraft-win-x64.zip</a><span class="size">89 MB</span></td>
+          </tr>
+          <tr>
+            <td>Windows on ARM<small>Snapdragon X, Surface Pro X</small></td>
+            <td><a class="file" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe">Updraft-win-arm64-setup.exe</a><span class="size">58 MB</span></td>
+            <td><a class="file" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64.zip">Updraft-win-arm64.zip</a><span class="size">86 MB</span></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+    <p class="fine">Requires Windows 10 1809 or newer with winget, which is built into Windows 11. Check with <code>winget --version</code>.</p>
+    <p class="fine">Builds come from GitHub Actions, with SHA-256 checksums on the <a class="textlink" href="https://github.com/bilal8492/updraft/releases/latest">release page</a> and build-provenance attestations. They are not code-signed yet, so SmartScreen may ask you to choose <i>More info</i>, then <i>Run anyway</i>.</p>
   </div>
-  <p class="hint">↑ Click the rows. Nothing is installed; this is just a demo.</p>
-</div></section>
+</section>
 
-<section id="features"><div class="wrap">
-  <div class="eyebrow">Features</div>
-  <h2>Everything winget does. None of the typing.</h2>
-  <p class="sec-lead">Updraft stays out of your way: one window, one job, done in seconds.</p>
-  <div class="grid">
-    <div class="card"><div class="ico">⚡</div><h3>Instant update scan</h3><p>Opens straight to the list of apps that have an update, showing the installed and the available version side by side.</p></div>
-    <div class="card"><div class="ico">☑</div><h3>Pick exactly what you want</h3><p>Tick individual apps, select all, or filter as you type. Nothing updates until you say so.</p></div>
-    <div class="card"><div class="ico">📋</div><h3>Copy the script</h3><p>Get the exact <code>winget</code> commands for your selection and paste them into any terminal, or keep them for later.</p></div>
-    <div class="card"><div class="ico">▶</div><h3>One-click install</h3><p>Updraft opens Windows Terminal and runs the whole batch for you. Optionally elevated for apps that need it.</p></div>
-    <div class="card"><div class="ico">🔎</div><h3>Discover &amp; Installed</h3><p>Search the full winget catalogue to install something new, or browse everything already on your PC.</p></div>
-    <div class="card"><div class="ico">🪟</div><h3>Truly native</h3><p>Built with WinUI 3: Windows 11 look and feel, Mica backdrop, automatic light and dark theme. Runs on Windows on ARM too.</p></div>
+<section class="sec" id="faq">
+  <div class="intro">
+    <p class="label">FAQ</p>
+    <h2>Before you install.</h2>
   </div>
-</div></section>
-
-<section id="how" class="dark-band"><div class="wrap">
-  <div class="eyebrow">How it works</div>
-  <h2>Three steps. About ten seconds.</h2>
-  <p class="sec-lead">&nbsp;</p>
-  <div class="steps">
-    <div class="step"><h3>Open Updraft</h3><p>It scans with <code>winget upgrade</code> in the background and lists every available update.</p></div>
-    <div class="step"><h3>Tick your apps</h3><p>Review versions, read the details pane, and choose what to update.</p></div>
-    <div class="step"><h3>Install or copy</h3><p>Hit <b>Run in terminal</b> to install now, or <b>Copy script</b> to run it wherever you like.</p></div>
+  <div>
+    <details><summary>Does Updraft send data anywhere?</summary><p>No. It has no telemetry, accounts or network calls of its own. It runs your local <code>winget</code>, which contacts the winget sources as usual.</p></details>
+    <details><summary>Do I need winget installed?</summary><p>Yes. It ships with Windows 11 and recent Windows 10 as App Installer.</p></details>
+    <details><summary>Why is the download around 60 MB?</summary><p>The .NET runtime and Windows App SDK are bundled so nothing else has to be installed. A smaller build is on the roadmap.</p></details>
+    <details><summary>Is it affiliated with Microsoft?</summary><p>No. It is an independent open-source project. Windows and winget are trademarks of Microsoft.</p></details>
+    <details><summary>Can I contribute?</summary><p>Yes. Read <a class="textlink" href="https://github.com/bilal8492/updraft/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>, then open an issue or a pull request.</p></details>
   </div>
-</div></section>
+</section>
 
-<section id="download"><div class="wrap">
-  <div class="eyebrow">Download</div>
-  <h2>Pick the build for your PC.</h2>
-  <p class="sec-lead">Download the installer and run it: no admin rights needed, and nothing else to install. Prefer portable? Every release also has a zip. Requires Windows 10 1809+ with winget (built into Windows 11).</p>
-  <div class="dl">
-    <div class="card"><div class="ico">💻</div><h3>Windows x64</h3><p>Intel and AMD PCs. The right choice for most people.</p>
-      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">⬇ Updraft-win-x64-setup.exe</a>
-      <a class="alt" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64.zip">or the portable zip</a></div>
-    <div class="card"><div class="ico">📱</div><h3>Windows on ARM</h3><p>Snapdragon X laptops, Surface Pro X and other ARM64 devices. Native, no emulation.</p>
-      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe">⬇ Updraft-win-arm64-setup.exe</a>
-      <a class="alt" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64.zip">or the portable zip</a></div>
-  </div>
-  <p class="sub">Builds are produced by GitHub Actions and ship with SHA-256 checksums and build-provenance attestations. They aren't code-signed yet, so SmartScreen may ask you to click <i>More info → Run anyway</i>.</p>
-</div></section>
-
-<section id="faq" class="dark-band"><div class="wrap">
-  <div class="eyebrow">FAQ</div>
-  <h2>Good to know</h2><p class="sec-lead">&nbsp;</p>
-  <details><summary>Does Updraft send any data anywhere?</summary><p>No. It has no telemetry, accounts or network calls of its own. It only runs your local <code>winget</code>, which talks to the winget sources like it always does.</p></details>
-  <details><summary>Do I need winget installed?</summary><p>Yes. It ships with Windows 11 and recent Windows 10 as “App Installer”. Run <code>winget --version</code> to check.</p></details>
-  <details><summary>Why is the download ~60 MB?</summary><p>The .NET runtime and Windows App SDK are bundled so the app runs anywhere without installing prerequisites. A smaller build is on the roadmap.</p></details>
-  <details><summary>Is it affiliated with Microsoft?</summary><p>No. It's an independent open-source project. Windows and winget are trademarks of Microsoft.</p></details>
-  <details><summary>Can I contribute?</summary><p>Please do. See <a href="https://github.com/bilal8492/updraft/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>. Issues and PRs are welcome.</p></details>
-</div></section>
+</div>
+</main>
 
 <footer><div class="wrap">
-  <a class="brand" href="#"><img src="assets/icon.png" alt="">Updraft</a>
-  <span>MIT © 2026 Bilal Ansari</span><span class="sp"></span>
+  <span>Updraft &middot; MIT &copy; 2026 Bilal Ansari</span><span class="sp"></span>
   <a href="https://github.com/bilal8492/updraft">GitHub</a>
   <a href="https://github.com/bilal8492/updraft/releases">Releases</a>
   <a href="https://github.com/bilal8492/updraft/issues">Issues</a>
@@ -248,33 +317,47 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
 
 <script>
 const pkgs=[
- {n:"Git",id:"Git.Git",a:"2.53.0",b:"2.56.0",d:"Distributed version control system."},
- {n:"Node.js",id:"OpenJS.NodeJS.LTS",a:"24.11.0",b:"24.12.1",d:"JavaScript runtime built on V8."},
+ {n:"Git",id:"Git.Git",a:"2.53.0",b:"2.56.0.4",d:"Distributed version control system."},
+ {n:"Node.js",id:"OpenJS.NodeJS.LTS",a:"24.11.0",b:"26.13.0",d:"JavaScript runtime built on V8."},
+ {n:"Python Launcher",id:"Python.Launcher",a:"< 3.14.7",b:"3.15.2",d:"The py launcher for Windows."},
  {n:"Notepad++",id:"Notepad++.Notepad++",a:"8.6.9",b:"8.8.2",d:"A free source code editor."},
  {n:"Windows Terminal",id:"Microsoft.WindowsTerminal",a:"1.24.1",b:"1.25.3",d:"The modern terminal for Windows."},
- {n:"PowerToys",id:"Microsoft.PowerToys",a:"0.95.0",b:"0.97.1",d:"Utilities to supercharge your Windows."},
- {n:"Python 3.13",id:"Python.Python.3.13",a:"3.13.5",b:"3.13.9",d:"The Python programming language."}
+ {n:"PowerToys",id:"Microsoft.PowerToys",a:"0.95.0",b:"0.97.1",d:"Utilities for power users."}
 ];
-const sel=new Set([0,3]);let cur=0;
-const rows=document.getElementById('rows'),term=document.getElementById('term');
+const sel=new Set([0,1]);let cur=0;
+const $=id=>document.getElementById(id);
 const flags=" --accept-package-agreements --accept-source-agreements";
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function render(){
-  rows.innerHTML="";
+  const rows=$("rows");rows.textContent="";
   pkgs.forEach((p,i)=>{
-    const r=document.createElement('div');r.className="row"+(sel.has(i)?" sel":"");
-    r.innerHTML=`<div class="cb"></div><div><div class="nm">${p.n}<span class="tag">winget</span></div><div class="meta">${p.id} · ${p.a} → ${p.b}</div></div>`;
-    r.onclick=()=>{sel.has(i)?sel.delete(i):sel.add(i);cur=i;render()};
-    rows.appendChild(r);
+    const b=document.createElement("button");b.type="button";b.className="row2";
+    b.setAttribute("aria-pressed",sel.has(i));
+    b.innerHTML='<span class="box"></span><span><span class="nm">'+esc(p.n)+'</span><span class="mt">'+esc(p.id)+' &middot; '+esc(p.a)+' <span class="to">&rarr; '+esc(p.b)+'</span></span></span>';
+    b.onclick=()=>{sel.has(i)?sel.delete(i):sel.add(i);cur=i;render()};
+    rows.appendChild(b);
   });
   const p=pkgs[cur];
-  dn.textContent=p.n;dd.textContent=p.d;di.textContent=p.a;dl.textContent=p.b;
-  const lines=[...sel].sort().map(i=>`<span class="c">winget</span> upgrade --id ${pkgs[i].id} -e${flags}`);
-  term.innerHTML=lines.length?lines.join("\n"):'<span class="d"># Tick an app and the winget script appears here.</span>';
-  selcount.textContent=sel.size+" selected";
-  run.textContent=sel.size?`▶ Update ${sel.size} in terminal`:"▶ Run in terminal";
-  run.classList.toggle('on',sel.size>0);
+  $("dn").textContent=p.n;$("dd").textContent=p.d;$("di").textContent=p.a;$("dl").textContent=p.b;
+  const lines=[...sel].sort().map(i=>'<span class="hi">winget</span> upgrade --id '+esc(pkgs[i].id)+' -e'+flags);
+  $("term").innerHTML=lines.length?lines.join("\n"):'<span class="dim"># Tick an app and its command appears here.</span>';
+  $("selcount").textContent=sel.size+" selected";
+  const r=$("run");r.textContent=sel.size?"Update "+sel.size+" in terminal":"Run in terminal";r.classList.toggle("on",sel.size>0);
 }
 render();
+
+/* Offer the ARM64 installer first when the browser reports an ARM CPU. */
+(async()=>{try{
+  const u=navigator.userAgentData;
+  if(u&&u.getHighEntropyValues){
+    const h=await u.getHighEntropyValues(["architecture"]);
+    if(h.architecture==="arm"){
+      const a=$("cta");
+      a.href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe";
+      a.textContent="Download installer (ARM64)";
+    }
+  }
+}catch(e){}})();
 </script>
 </body>
 </html>
