@@ -89,6 +89,7 @@ public sealed partial class MainWindow : Window
             DefaultAdmin = admin.IsChecked == true,
             Terminal = terms[Math.Max(0, term.SelectedIndex)],
             Theme = themes[Math.Max(0, theme.SelectedIndex)],
+            Skipped = s.Skipped,   // not edited here: carry the skip list over
         }.Save();
 
         AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
@@ -99,7 +100,8 @@ public sealed partial class MainWindow : Window
 
     // ---------- helpers ----------
 
-    private IEnumerable<Pkg> Selected => _all.Where(p => p.IsSelected);
+    // Only what is on screen counts: a hidden (skipped) package must never be installed by accident.
+    private IEnumerable<Pkg> Selected => Items.Where(p => p.IsSelected);
 
     private string VerbLabel => _mode switch { "upgrade" => "Update", "installed" => "Uninstall", _ => "Install" };
 
@@ -123,9 +125,10 @@ public sealed partial class MainWindow : Window
     private void UpdateFooter()
     {
         int n = Selected.Count();
-        SelCount.Text = Items.Count == _all.Count
+        int total = Listed.Count();
+        SelCount.Text = Items.Count == total
             ? $"{n} selected  ·  {Items.Count} shown"
-            : $"{n} selected  ·  {Items.Count} of {_all.Count} shown";
+            : $"{n} selected  ·  {Items.Count} of {total} shown";
         RunBtn.IsEnabled = n > 0 && !_running;
         CopyBtn.IsEnabled = n > 0 && !_running;
         RunText.Text = n > 0 ? $"{VerbLabel} {n} in terminal" : "Run in terminal";
@@ -135,7 +138,7 @@ public sealed partial class MainWindow : Window
 
         EmptyMsg.Text = Items.Count > 0 || Ring.IsActive ? "" : _mode switch
         {
-            "upgrade" => _all.Count > 0 ? "No matches" : "Everything is up to date 🎉",
+            "upgrade" => total > 0 ? "No matches" : "Everything is up to date 🎉",
             "installed" => "No packages",
             _ => _all.Count > 0 ? "No matches" : "Type a name in the search box and press Enter",
         };
@@ -144,7 +147,7 @@ public sealed partial class MainWindow : Window
     private void ApplyFilter()
     {
         var q = _mode == "discover" ? "" : Search.Text.Trim();
-        IEnumerable<Pkg> vis = _all.Where(p => q.Length == 0
+        IEnumerable<Pkg> vis = Listed.Where(p => q.Length == 0
             || p.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
             || p.Id.Contains(q, StringComparison.OrdinalIgnoreCase));
 
@@ -245,9 +248,19 @@ public sealed partial class MainWindow : Window
 
         SetBusy(true, busyMsg);
         List<Pkg> result;
+        HashSet<string> pins = new(StringComparer.OrdinalIgnoreCase);
         try
         {
-            result = await Task.Run(async () => WingetService.Parse(await WingetService.RunAsync(args), mode));
+            var listTask = Task.Run(async () => WingetService.Parse(await WingetService.RunAsync(args), mode));
+            // Pins only matter for installed apps (winget leaves pinned ones out of the upgrade list).
+            var pinTask = mode == "installed"
+                ? Task.Run(async () => WingetService.ParsePinIds(await WingetService.RunAsync("pin", "list", "--accept-source-agreements")))
+                : null;
+            result = await listTask;
+            if (pinTask is not null)
+            {
+                try { pins = await pinTask; } catch { /* no pin info: just show no pin badges */ }
+            }
         }
         catch (Exception ex)
         {
@@ -261,23 +274,44 @@ public sealed partial class MainWindow : Window
 
         foreach (var p in result)
         {
+            p.IsPinned = pins.Contains(p.Id);
+            p.IsSkipped = mode == "upgrade" && AppSettings.Current.IsSkipped(p.Id);
             p.PropertyChanged += OnPkgChanged;
             _all.Add(p);
         }
         RefreshSourceChoices();
         ApplyFilter();
         SetBusy(false);
-        if (mode == "upgrade")
-        {
-            UpBadge.Value = _all.Count;
-            UpBadge.Visibility = _all.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
         Subtitle.Text = mode switch
         {
-            "upgrade" => _all.Count > 0 ? $"{_all.Count} updates available" : "All packages are up to date",
-            "installed" => $"{_all.Count} packages",
-            _ => $"{_all.Count} results for “{q}”",
+            "installed" => pins.Count > 0 ? $"{_all.Count} packages  ·  {_all.Count(p => p.IsPinned)} pinned" : $"{_all.Count} packages",
+            "discover" => $"{_all.Count} results for “{q}”",
+            _ => "",
         };
+        if (mode == "upgrade") RefreshUpgradeCounts();
+    }
+
+    // Subtitle and nav badge count only the updates that aren't skipped.
+    private void RefreshUpgradeCounts()
+    {
+        if (_mode != "upgrade") return;
+        int skipped = _all.Count(p => p.IsSkipped);
+        int active = _all.Count - skipped;
+        UpBadge.Value = active;
+        UpBadge.Visibility = active > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var text = active > 0 ? $"{active} updates available" : "All packages are up to date";
+        Subtitle.Text = skipped > 0 ? $"{text}  ·  {skipped} skipped" : text;
+    }
+
+    private bool _showSkipped;
+
+    // What the list is allowed to show before search/source filters: skipped updates stay hidden unless asked for.
+    private IEnumerable<Pkg> Listed => _mode == "upgrade" && !_showSkipped ? _all.Where(p => !p.IsSkipped) : _all;
+
+    private void ShowSkipped_Click(object sender, RoutedEventArgs e)
+    {
+        _showSkipped = ShowSkippedChk.IsChecked == true;
+        ApplyFilter();
     }
 
     private void OnPkgChanged(object? s, PropertyChangedEventArgs e)
@@ -319,6 +353,7 @@ public sealed partial class MainWindow : Window
         if (!_jumpToDiscover) Search.Text = "";
         _jumpToDiscover = false;
         Search.PlaceholderText = _mode == "discover" ? "Search winget" : "Filter this list";
+        ShowSkippedChk.Visibility = _mode == "upgrade" ? Visibility.Visible : Visibility.Collapsed;
         _ = LoadAsync();
     }
 
@@ -366,6 +401,7 @@ public sealed partial class MainWindow : Window
         DLatest.Text = p.Available.Length > 0 ? p.Available : p.Version;
         DCmd.Text = WingetService.Command(p, _mode);
         DAction.Content = $"{VerbLabel} {p.Name}";
+        UpdatePinSkipButtons(p);
         DDesc.Text = "Loading details…";
         DPub.Text = DLic.Text = "";
         DHome.Content = "";
@@ -396,6 +432,84 @@ public sealed partial class MainWindow : Window
     {
         if (_running || PkgList.SelectedItem is not Pkg p) return;
         StartRun(new[] { p });
+    }
+
+    // ---------- skip & pin ----------
+
+    private void UpdatePinSkipButtons(Pkg p)
+    {
+        DSkip.Visibility = _mode == "upgrade" ? Visibility.Visible : Visibility.Collapsed;
+        DSkip.Content = p.IsSkipped ? "Stop skipping" : "Skip updates";
+        DPin.Visibility = _mode == "discover" ? Visibility.Collapsed : Visibility.Visible;
+        DPin.Content = p.IsPinned ? "Unpin" : "Pin version";
+    }
+
+    private void DSkip_Click(object sender, RoutedEventArgs e)
+    {
+        if (PkgList.SelectedItem is not Pkg p) return;
+        bool skip = !p.IsSkipped;
+        AppSettings.Current.SetSkipped(p.Id, skip);
+        p.IsSkipped = skip;
+        if (skip) p.IsSelected = false;
+        ApplyFilter();           // a newly skipped row leaves the list (selection clears, detail pane closes)
+        RefreshUpgradeCounts();
+        UpdatePinSkipButtons(p);
+        SetStatus(skip
+            ? $"Skipping {p.Name}. Tick “Show skipped” to see it again."
+            : $"{p.Name} will show up in updates again", Green);
+    }
+
+    private bool _pinBusy;
+
+    private async void DPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pinBusy || _running || PkgList.SelectedItem is not Pkg p) return;
+        if (!WingetService.IsSafeId(p.Id))
+        {
+            SetStatus("Skipped: the package id looks unsafe or truncated", Red);
+            return;
+        }
+
+        bool unpin = p.IsPinned;
+        _pinBusy = true;
+        DPin.IsEnabled = false;
+        SetStatus($"{(unpin ? "Unpinning" : "Pinning")} {p.Name}…", Amber);
+        try
+        {
+            var (code, output) = await Task.Run(() =>
+                WingetService.RunCaptureAsync("pin", unpin ? "remove" : "add", "--id", p.Id, "-e", "--accept-source-agreements"));
+            if (code != 0)
+            {
+                var why = WingetService.LastLine(output);
+                SetStatus($"Could not {(unpin ? "unpin" : "pin")} {p.Name}" + (why.Length > 0 ? ": " + why : $" (exit code 0x{code:X8})"), Red);
+                return;
+            }
+
+            p.IsPinned = !unpin;
+            if (!unpin && _mode == "upgrade")
+            {
+                // winget no longer offers a pinned app as an update, so take it off this list too.
+                p.IsSelected = false;
+                _all.Remove(p);
+                ApplyFilter();
+                RefreshUpgradeCounts();
+                SetStatus($"Pinned {p.Name}. It won't be offered as an update. Manage pins in Installed.", Green);
+            }
+            else
+            {
+                UpdatePinSkipButtons(p);
+                SetStatus(unpin ? $"Unpinned {p.Name}" : $"Pinned {p.Name} at {p.Version}", Green);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus("winget failed: " + ex.Message, Red);
+        }
+        finally
+        {
+            _pinBusy = false;
+            DPin.IsEnabled = true;
+        }
     }
 
     // ---------- in-app runner ----------

@@ -17,6 +17,18 @@ public sealed class AppSettings
     /// <summary>"system", "light" or "dark".</summary>
     public string Theme { get; set; } = "system";
 
+    /// <summary>Package ids the user chose to skip in the Upgrades list.</summary>
+    public List<string> Skipped { get; set; } = new();
+
+    public bool IsSkipped(string id) => Skipped.Contains(id, StringComparer.OrdinalIgnoreCase);
+
+    public void SetSkipped(string id, bool skipped)
+    {
+        Skipped.RemoveAll(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase));
+        if (skipped) Skipped.Add(id);
+        Save();
+    }
+
     public static AppSettings Current { get; private set; } = Load();
 
     private static string FilePath => Path.Combine(
@@ -39,6 +51,8 @@ public sealed class AppSettings
         if (s.InstallMode is not ("default" or "silent" or "interactive")) s.InstallMode = "default";
         if (s.Terminal is not ("auto" or "wt" or "powershell")) s.Terminal = "auto";
         if (s.Theme is not ("system" or "light" or "dark")) s.Theme = "system";
+        s.Skipped = (s.Skipped ?? new()).Where(x => !string.IsNullOrWhiteSpace(x) && x.Length <= 200)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         return s;
     }
 

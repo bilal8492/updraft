@@ -40,6 +40,27 @@ public sealed class Pkg : INotifyPropertyChanged
         }
     }
 
+    // ---------- pin / skip ----------
+
+    private bool _isPinned, _isSkipped;
+
+    /// <summary>Held at its current version via <c>winget pin</c>.</summary>
+    public bool IsPinned
+    {
+        get => _isPinned;
+        set { if (_isPinned == value) return; _isPinned = value; Notify(nameof(IsPinned), nameof(PinnedVisibility)); }
+    }
+
+    /// <summary>Hidden from the update list by the user (stored locally by Updraft, not by winget).</summary>
+    public bool IsSkipped
+    {
+        get => _isSkipped;
+        set { if (_isSkipped == value) return; _isSkipped = value; Notify(nameof(IsSkipped), nameof(SkippedVisibility)); }
+    }
+
+    public Visibility PinnedVisibility => _isPinned ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility SkippedVisibility => _isSkipped ? Visibility.Visible : Visibility.Collapsed;
+
     // ---------- in-app run state ----------
 
     private const int MaxLog = 24_000;

@@ -38,6 +38,41 @@ public static class WingetService
     /// </summary>
     public static bool IsSafeId(string id) => Regex.IsMatch(id, @"^\w[\w.+\-]*$");
 
+    /// <summary>Runs winget to completion and returns its exit code plus stdout and stderr combined.</summary>
+    public static async Task<(int Code, string Output)> RunCaptureAsync(params string[] args)
+    {
+        var psi = new ProcessStartInfo("winget")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var a in args) psi.ArgumentList.Add(a);
+
+        using var p = Process.Start(psi) ?? throw new InvalidOperationException("Could not start winget");
+        p.StandardInput.Close();
+        var so = p.StandardOutput.ReadToEndAsync();
+        var se = p.StandardError.ReadToEndAsync();
+        await p.WaitForExitAsync();
+        return (p.ExitCode, (await so) + (await se));
+    }
+
+    /// <summary>Ids of packages that have a pin, from `winget pin list`. The Id column is the second one in that table.</summary>
+    public static HashSet<string> ParsePinIds(string text) =>
+        Parse(text, "installed").Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The last meaningful line of winget output, for showing why something failed.</summary>
+    public static string LastLine(string output)
+    {
+        var lines = output.Split('\n').Select(l => l.Split('\r').LastOrDefault(s => s.Trim().Length > 0) ?? "")
+            .Select(l => l.Trim()).Where(l => l.Length > 0 && !l.All(c => c is '-' or '\\' or '|' or '/'));
+        return lines.LastOrDefault() ?? "";
+    }
+
     /// <summary>The winget arguments for one package, shared by the copied script and the in-app runner.</summary>
     public static List<string> Args(Pkg p, string mode)
     {
