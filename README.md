@@ -42,6 +42,13 @@ Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native f
 - **Optional "Run as administrator"** for apps that need elevation.
 - **Installed** view to browse everything on the machine, and **Discover** to search the whole winget catalogue.
 - **Detail pane** with description, publisher, licence and homepage (from `winget show`).
+- **Backup & restore.** Export your installed apps to a JSON file, then restore them on a new PC: Updraft shows which
+  are already installed and ticks the rest. Uses winget's own export format.
+- **Skip just one version** of an update (it comes back when a newer one ships), or skip an app for good.
+- **History** of every install, update and uninstall run inside Updraft, with results. Stored locally only.
+- **Keyboard shortcuts:** `Ctrl+1`–`4` switch pages, `F5` rescans, `Ctrl+F` searches, `Ctrl+A` selects all,
+  `Ctrl+Enter` starts, `Esc` cancels.
+- Remembers its window size and position, and explains how to get winget if it isn't installed.
 - **Native WinUI 3** app: Windows 11 look, Mica backdrop, automatic light/dark theme.
 - Runs on **Windows 10 (1809+) and Windows 11**, on **x64 and ARM64**.
 - No telemetry, no accounts, no network calls of its own. It only talks to `winget`.

@@ -42,7 +42,24 @@ public sealed class Pkg : INotifyPropertyChanged
 
     // ---------- pin / skip ----------
 
-    private bool _isPinned, _isSkipped;
+    private bool _isPinned, _isSkipped, _isInstalled;
+    private string _skipLabel = "skipped";
+
+    /// <summary>Already on this PC (used when restoring an app list, so those rows aren't reinstalled).</summary>
+    public bool IsInstalled
+    {
+        get => _isInstalled;
+        set { if (_isInstalled == value) return; _isInstalled = value; Notify(nameof(IsInstalled), nameof(InstalledVisibility)); }
+    }
+
+    public Visibility InstalledVisibility => _isInstalled ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Badge text: "skipped", or "skipped 1.2.3" when only that version is skipped.</summary>
+    public string SkipLabel
+    {
+        get => _skipLabel;
+        set { if (_skipLabel == value) return; _skipLabel = value; Notify(nameof(SkipLabel)); }
+    }
 
     /// <summary>Held at its current version via <c>winget pin</c>.</summary>
     public bool IsPinned

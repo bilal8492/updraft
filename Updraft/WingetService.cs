@@ -25,6 +25,9 @@ public static class WingetService
         return await stdout;
     }
 
+    /// <summary>True when the failure is "winget.exe isn't on this PC" (file or path not found).</summary>
+    public static bool IsMissing(Exception ex) => ex is System.ComponentModel.Win32Exception { NativeErrorCode: 2 or 3 };
+
     public static string Verb(string mode) => mode switch
     {
         "upgrade" => "upgrade",
