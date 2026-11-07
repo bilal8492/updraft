@@ -49,10 +49,26 @@ jobs:
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath $zip -CompressionLevel Optimal
           "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer (.exe)
+        shell: pwsh
+        run: |
+          $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')   # numeric part only
+          $arch = '${{ matrix.rid }}'.Replace('win-', '')
+          $name = "Updraft-$($env:TAG)-${{ matrix.rid }}-setup"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DVersion=$version" "/DArch=$arch" `
+            "/DSourceDir=$PWD\publish\${{ matrix.rid }}" "/DOutputDir=$PWD" "/F$name" installer\updraft.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          "SETUP=$name.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.rid }}
-          path: ${{ env.ZIP }}
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.SETUP }}
           if-no-files-found: error
 
   release:
@@ -74,12 +90,14 @@ jobs:
 
       - name: Checksums
         working-directory: dist
-        run: sha256sum *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: sha256sum *.exe *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: dist/*.zip
+          subject-path: |
+            dist/*.exe
+            dist/*.zip
 
       - name: Publish GitHub release
         run: |
@@ -88,5 +106,5 @@ jobs:
           else
             gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
               --title "Updraft $TAG" --generate-notes \
-              --notes "Download the zip for your CPU: **win-x64** (Intel/AMD) or **win-arm64** (Windows on ARM). Extract and run Updraft.exe. Verify with SHA256SUMS.txt."
+              --notes "**Install:** download the \`-setup.exe\` for your CPU, **win-x64** (Intel/AMD) or **win-arm64** (Windows on ARM), and run it. **Portable:** the \`.zip\` needs no install, just extract and run Updraft.exe. Verify downloads with SHA256SUMS.txt. The binaries are not code-signed yet, so SmartScreen may show a warning (More info, then Run anyway)."
           fi

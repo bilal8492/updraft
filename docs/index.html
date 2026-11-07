@@ -199,12 +199,12 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
 <section id="download"><div class="wrap">
   <div class="eyebrow">Download</div>
   <h2>Pick the build for your PC.</h2>
-  <p class="sec-lead">Self-contained: nothing else to install. Extract the zip and run <code>Updraft.exe</code>. Requires Windows 10 1809+ with winget (built into Windows 11).</p>
+  <p class="sec-lead">Download the installer and run it: no admin rights needed, and nothing else to install. Prefer portable? Every release also has a zip. Requires Windows 10 1809+ with winget (built into Windows 11).</p>
   <div class="dl">
     <div class="card"><div class="ico">💻</div><h3>Windows x64</h3><p>Intel and AMD PCs. The right choice for most people.</p>
-      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest">⬇ Get the win-x64 zip</a></div>
+      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest">⬇ Get the x64 installer (.exe)</a></div>
     <div class="card"><div class="ico">📱</div><h3>Windows on ARM</h3><p>Snapdragon X laptops, Surface Pro X and other ARM64 devices. Native, no emulation.</p>
-      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest">⬇ Get the win-arm64 zip</a></div>
+      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest">⬇ Get the ARM64 installer (.exe)</a></div>
   </div>
   <p class="sub">Builds are produced by GitHub Actions and ship with SHA-256 checksums and build-provenance attestations. They aren't code-signed yet, so SmartScreen may ask you to click <i>More info → Run anyway</i>.</p>
 </div></section>
@@ -214,7 +214,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
   <h2>Good to know</h2><p class="sec-lead">&nbsp;</p>
   <details><summary>Does Updraft send any data anywhere?</summary><p>No. It has no telemetry, accounts or network calls of its own. It only runs your local <code>winget</code>, which talks to the winget sources like it always does.</p></details>
   <details><summary>Do I need winget installed?</summary><p>Yes. It ships with Windows 11 and recent Windows 10 as “App Installer”. Run <code>winget --version</code> to check.</p></details>
-  <details><summary>Why is the download ~80 MB?</summary><p>The .NET runtime and Windows App SDK are bundled so the app runs anywhere without installing prerequisites. A smaller build is on the roadmap.</p></details>
+  <details><summary>Why is the download ~60 MB?</summary><p>The .NET runtime and Windows App SDK are bundled so the app runs anywhere without installing prerequisites. A smaller build is on the roadmap.</p></details>
   <details><summary>Is it affiliated with Microsoft?</summary><p>No. It's an independent open-source project. Windows and winget are trademarks of Microsoft.</p></details>
   <details><summary>Can I contribute?</summary><p>Please do. See <a href="https://github.com/bilal8492/updraft/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>. Issues and PRs are welcome.</p></details>
 </div></section>

@@ -44,10 +44,16 @@ Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native f
 
 ## Install
 
-1. Download the zip for your CPU from the [latest release](https://github.com/bilal8492/updraft/releases/latest):
-   - `Updraft-<version>-win-x64.zip` for Intel/AMD PCs
-   - `Updraft-<version>-win-arm64.zip` for Windows on ARM (Snapdragon X, Surface Pro X…)
-2. Extract it anywhere and run `Updraft.exe`.
+Download the installer for your CPU from the [latest release](https://github.com/bilal8492/updraft/releases/latest)
+and run it:
+
+| Your PC | Installer | Portable zip |
+| --- | --- | --- |
+| Intel / AMD (x64) | `Updraft-<version>-win-x64-setup.exe` | `Updraft-<version>-win-x64.zip` |
+| Windows on ARM (Snapdragon X, Surface Pro X…) | `Updraft-<version>-win-arm64-setup.exe` | `Updraft-<version>-win-arm64.zip` |
+
+The installer needs no admin rights by default (it installs for your user), adds a Start menu entry and an uninstaller.
+Prefer portable? Extract the zip anywhere and run `Updraft.exe`.
 
 **Requirements:** Windows 10 1809 or newer with [winget](https://learn.microsoft.com/windows/package-manager/winget/)
 (App Installer) available. Windows 11 includes it. The .NET runtime and Windows App SDK are bundled, so there is nothing else to install.
@@ -86,6 +92,7 @@ Updraft/
   MainWindow.xaml(.cs)   UI and interaction
   WingetService.cs       winget process + output parser
   Pkg.cs                 data models
+installer/updraft.iss    Inno Setup script for the setup .exe
 docs/                    the project website (GitHub Pages)
 .github/workflows/       CI, release and Pages pipelines
 ```
