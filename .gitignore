@@ -35,3 +35,9 @@ desktop.ini
 # NuGet
 *.nupkg
 packages/
+
+# Signing material must never be committed
+*.pfx
+*.p12
+*.msix
+*.msixbundle

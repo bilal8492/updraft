@@ -25,6 +25,7 @@ jobs:
           - { platform: ARM64, rid: win-arm64 }
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      PFX_B64: ${{ secrets.MSIX_PFX_BASE64 }}   # job-level so step `if:` conditions can see whether signing is set up
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,9 +73,83 @@ jobs:
             ${{ env.SETUP }}
           if-no-files-found: error
 
+      # Signed per-architecture .msix, combined into one .msixbundle by the "bundle" job.
+      # Skipped (not failed) when the signing secrets are not configured. See packaging/README.md.
+      - name: Build signed MSIX
+        if: env.PFX_B64 != ''
+        shell: pwsh
+        env:
+          PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
+        run: |
+          $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')
+          $arch = '${{ matrix.rid }}'.Replace('win-', '')
+          $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+          try {
+            ./packaging/build-msix.ps1 -PublishDir "publish/${{ matrix.rid }}" -Arch $arch -Version $version `
+              -OutFile "msix/Updraft-${{ matrix.rid }}.msix" -PfxPath $pfx -PfxPassword $env:PFX_PASSWORD
+          } finally { Remove-Item $pfx -Force -ErrorAction SilentlyContinue }
+
+      - uses: actions/upload-artifact@v7
+        if: env.PFX_B64 != ''
+        with:
+          name: msix-${{ matrix.rid }}
+          path: msix/*.msix
+          if-no-files-found: error
+
+  bundle:
+    name: Bundle MSIX
+    needs: build
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      PFX_B64: ${{ secrets.MSIX_PFX_BASE64 }}
+      PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.PFX_B64 != ''
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-dotnet@v6
+        if: env.PFX_B64 != ''
+        with:
+          dotnet-version: 9.0.x
+
+      - uses: actions/download-artifact@v8
+        if: env.PFX_B64 != ''
+        with:
+          pattern: msix-*
+          path: msix-in
+          merge-multiple: true
+
+      - name: Create signed .msixbundle and certificate
+        if: env.PFX_B64 != ''
+        shell: pwsh
+        run: |
+          dotnet restore Updraft/Updraft.csproj   # brings in makeappx and signtool (Windows SDK build tools)
+          $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')
+          $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+          New-Item -ItemType Directory msix-out | Out-Null
+          try {
+            ./packaging/bundle-msix.ps1 -InputDir msix-in -Version $version `
+              -OutFile msix-out/Updraft.msixbundle -PfxPath $pfx -PfxPassword $env:PFX_PASSWORD
+            # Public certificate people trust to install the sideload package (no private key in it).
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, $env:PFX_PASSWORD)
+            [IO.File]::WriteAllBytes('msix-out/Updraft-signing.cer', $cert.Export('Cert'))
+          } finally { Remove-Item $pfx -Force -ErrorAction SilentlyContinue }
+
+      - uses: actions/upload-artifact@v7
+        if: env.PFX_B64 != ''
+        with:
+          name: msix-bundle
+          path: msix-out/*
+          if-no-files-found: error
+
   release:
     name: Create release
-    needs: build
+    needs: [build, bundle]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -83,15 +158,23 @@ jobs:
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
+      PFX_B64: ${{ secrets.MSIX_PFX_BASE64 }}
     steps:
       - uses: actions/download-artifact@v8
         with:
+          pattern: win-*
           path: dist
           merge-multiple: true
 
+      - uses: actions/download-artifact@v8
+        if: env.PFX_B64 != ''
+        with:
+          name: msix-bundle
+          path: dist
+
       - name: Checksums
         working-directory: dist
-        run: sha256sum *.exe *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: sha256sum $(ls *.exe *.zip *.msixbundle *.cer 2>/dev/null) > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
@@ -99,6 +182,7 @@ jobs:
           subject-path: |
             dist/*.exe
             dist/*.zip
+            dist/*.msixbundle
 
       - name: Publish GitHub release
         run: |
@@ -107,5 +191,5 @@ jobs:
           else
             gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
               --title "Updraft $TAG" --generate-notes \
-              --notes "**Install:** download the \`-setup.exe\` for your CPU, **win-x64** (Intel/AMD) or **win-arm64** (Windows on ARM), and run it. **Portable:** the \`.zip\` needs no install, just extract and run Updraft.exe. Verify downloads with SHA256SUMS.txt. The binaries are not code-signed yet, so SmartScreen may show a warning (More info, then Run anyway)."
+              --notes "**Install:** download the \`-setup.exe\` for your CPU, **win-x64** (Intel/AMD) or **win-arm64** (Windows on ARM), and run it. **Portable:** the \`.zip\` needs no install, just extract and run Updraft.exe. **MSIX (optional):** if this release has an \`Updraft.msixbundle\`, trust \`Updraft-signing.cer\` first (see packaging/README.md), then open the bundle. Verify downloads with SHA256SUMS.txt. The binaries are not code-signed yet, so SmartScreen may show a warning (More info, then Run anyway)."
           fi

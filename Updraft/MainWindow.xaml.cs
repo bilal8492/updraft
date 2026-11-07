@@ -710,17 +710,29 @@ public sealed partial class MainWindow : Window
         }
         sb.AppendLine("Write-Host ''; Write-Host 'All done. You can close this window.' -ForegroundColor Green");
 
-        // Unique file in a per-user folder (not a predictable path in %TEMP%), because it may be run elevated.
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "runs");
-        Directory.CreateDirectory(dir);
-        foreach (var old in Directory.GetFiles(dir, "*.ps1").Where(f => File.GetLastWriteTimeUtc(f) < DateTime.UtcNow.AddDays(-1)))
+        // Pass the script on the command line. No file means nothing for another process to swap before an elevated
+        // run, and it also works from the MSIX build, where files written under %LOCALAPPDATA% are redirected to a
+        // private per-package copy that Windows Terminal and an elevated PowerShell cannot see.
+        var script = sb.ToString();
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+        string psArgs;
+        if (encoded.Length <= 20_000)   // stay well under the ~32K command-line limit
         {
-            try { File.Delete(old); } catch { /* best effort */ }
+            psArgs = $"-NoExit -ExecutionPolicy Bypass -EncodedCommand {encoded}";
         }
-        var file = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".ps1");
-        File.WriteAllText(file, sb.ToString(), new UTF8Encoding(true));
-
-        var psArgs = $"-NoExit -ExecutionPolicy Bypass -File \"{file}\"";
+        else
+        {
+            // Very large selections: fall back to a unique file in a per-user folder.
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "runs");
+            Directory.CreateDirectory(dir);
+            foreach (var old in Directory.GetFiles(dir, "*.ps1").Where(f => File.GetLastWriteTimeUtc(f) < DateTime.UtcNow.AddDays(-1)))
+            {
+                try { File.Delete(old); } catch { /* best effort */ }
+            }
+            var file = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".ps1");
+            File.WriteAllText(file, script, new UTF8Encoding(true));
+            psArgs = $"-NoExit -ExecutionPolicy Bypass -File \"{file}\"";
+        }
         bool admin = AdminChk.IsChecked == true;
 
         bool Launch(string exe, string args)
