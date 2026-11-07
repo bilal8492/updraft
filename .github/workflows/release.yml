@@ -45,7 +45,8 @@ jobs:
       - name: Zip
         shell: pwsh
         run: |
-          $zip = "Updraft-$($env:TAG)-${{ matrix.rid }}.zip"
+          # Version-free names so https://github.com/<repo>/releases/latest/download/<name> is a stable direct link
+          $zip = "Updraft-${{ matrix.rid }}.zip"
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath $zip -CompressionLevel Optimal
           "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -57,7 +58,7 @@ jobs:
         run: |
           $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')   # numeric part only
           $arch = '${{ matrix.rid }}'.Replace('win-', '')
-          $name = "Updraft-$($env:TAG)-${{ matrix.rid }}-setup"
+          $name = "Updraft-${{ matrix.rid }}-setup"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DVersion=$version" "/DArch=$arch" `
             "/DSourceDir=$PWD\publish\${{ matrix.rid }}" "/DOutputDir=$PWD" "/F$name" installer\updraft.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }

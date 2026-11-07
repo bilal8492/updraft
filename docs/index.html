@@ -10,7 +10,7 @@
 <meta property="og:title" content="Updraft: a simple UI for winget">
 <meta property="og:description" content="Scan updates, tick the apps you want, install in one click. Native, open source, x64 + ARM64.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://bilal8492.github.io/updraft/assets/icon.png">
+<meta property="og:image" content="https://bilal8492.github.io/updraft/assets/screenshot.png">
 <meta property="og:url" content="https://bilal8492.github.io/updraft/">
 <style>
 :root{
@@ -53,8 +53,12 @@ h1{font-size:clamp(38px,6vw,68px);line-height:1.05;letter-spacing:-.03em;margin:
 .cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .sub{margin-top:14px;font-size:14px;color:var(--muted)}
 
+/* real screenshot */
+.shot{margin:54px auto 0;max-width:1060px;border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;background:var(--bg2)}
+.shot img{display:block;width:100%;height:auto}
+
 /* app mockup */
-.app{margin:54px auto 0;border-radius:16px;border:1px solid var(--line);background:var(--bg2);box-shadow:var(--shadow);overflow:hidden;max-width:1060px}
+.app{margin:0 auto;border-radius:16px;border:1px solid var(--line);background:var(--bg2);box-shadow:var(--shadow);overflow:hidden;max-width:1060px}
 .titlebar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
 .titlebar img{width:16px;height:16px}
 .titlebar .dots{margin-left:auto;letter-spacing:6px}
@@ -108,6 +112,7 @@ h2{font-size:clamp(28px,4vw,42px);letter-spacing:-.02em;line-height:1.15;margin:
 .dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:8px}
 .dl .card{display:flex;flex-direction:column;gap:10px}
 .dl .card .btn{margin-top:auto;justify-content:center}
+.dl .alt{text-align:center;font-size:14px;color:var(--muted)}
 code{font-family:"Cascadia Mono",Consolas,monospace;font-size:.9em;background:var(--chip);padding:2px 7px;border-radius:6px}
 .dark-band{background:var(--bg2);border-block:1px solid var(--line)}
 details{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px 20px;margin-bottom:10px}
@@ -125,7 +130,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
 <nav><div class="wrap">
   <a class="brand" href="#"><img src="assets/icon.png" alt="">Updraft</a>
   <div class="links">
-    <a href="#features">Features</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
+    <a href="#features">Features</a><a href="#try">Try it</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
     <a href="https://github.com/bilal8492/updraft">GitHub</a>
     <a class="btn primary" href="#download">Download</a>
   </div>
@@ -136,10 +141,21 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
   <h1>Update every app on Windows<br><span class="grad">in a single click.</span></h1>
   <p class="lead">Updraft is a small, native front-end for <code>winget</code>. It finds every app with a newer version, you tick the ones you want, and it installs them. Or hands you the script.</p>
   <div class="cta">
-    <a class="btn primary" href="#download">⬇ Download for Windows</a>
-    <a class="btn" href="https://github.com/bilal8492/updraft">★ View on GitHub</a>
+    <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">⬇ Download installer (x64)</a>
+    <a class="btn" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe">⬇ ARM64</a>
+    <a class="btn" href="https://github.com/bilal8492/updraft">★ GitHub</a>
   </div>
-  <p class="sub">No account · no telemetry · MIT licensed</p>
+  <p class="sub">Windows 10 / 11 · No account · no telemetry · MIT licensed</p>
+
+  <figure class="shot">
+    <img src="assets/screenshot.png" width="1165" height="751" alt="Updraft showing available updates, with a details pane for Git and the Run in terminal button">
+  </figure>
+</div></header>
+
+<section id="try"><div class="wrap">
+  <div class="eyebrow">Try it</div>
+  <h2>Build your update script in seconds.</h2>
+  <p class="sec-lead">This is a live mock of the app. Click rows to tick apps and watch the exact <code>winget</code> commands appear, the same ones Updraft copies or runs for you.</p>
 
   <!-- interactive mockup -->
   <div class="app" aria-label="Updraft app preview">
@@ -168,8 +184,8 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
       <button class="run" id="run" type="button" tabindex="-1">▶ Run in terminal</button>
     </div>
   </div>
-  <p class="hint">↑ Try it: click the rows to build your update script.</p>
-</div></header>
+  <p class="hint">↑ Click the rows. Nothing is installed; this is just a demo.</p>
+</div></section>
 
 <section id="features"><div class="wrap">
   <div class="eyebrow">Features</div>
@@ -202,9 +218,11 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
   <p class="sec-lead">Download the installer and run it: no admin rights needed, and nothing else to install. Prefer portable? Every release also has a zip. Requires Windows 10 1809+ with winget (built into Windows 11).</p>
   <div class="dl">
     <div class="card"><div class="ico">💻</div><h3>Windows x64</h3><p>Intel and AMD PCs. The right choice for most people.</p>
-      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest">⬇ Get the x64 installer (.exe)</a></div>
+      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">⬇ Updraft-win-x64-setup.exe</a>
+      <a class="alt" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64.zip">or the portable zip</a></div>
     <div class="card"><div class="ico">📱</div><h3>Windows on ARM</h3><p>Snapdragon X laptops, Surface Pro X and other ARM64 devices. Native, no emulation.</p>
-      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest">⬇ Get the ARM64 installer (.exe)</a></div>
+      <a class="btn primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe">⬇ Updraft-win-arm64-setup.exe</a>
+      <a class="alt" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64.zip">or the portable zip</a></div>
   </div>
   <p class="sub">Builds are produced by GitHub Actions and ship with SHA-256 checksums and build-provenance attestations. They aren't code-signed yet, so SmartScreen may ask you to click <i>More info → Run anyway</i>.</p>
 </div></section>

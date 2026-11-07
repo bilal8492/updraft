@@ -22,6 +22,10 @@
   <a href="https://github.com/bilal8492/updraft/issues">Report a bug</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/screenshot.png" alt="Updraft showing available updates with a details pane" width="820" />
+</p>
+
 ---
 
 ## Why
@@ -44,13 +48,14 @@ Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native f
 
 ## Install
 
-Download the installer for your CPU from the [latest release](https://github.com/bilal8492/updraft/releases/latest)
-and run it:
+Download the installer for your CPU and run it (direct links, always the newest release):
 
 | Your PC | Installer | Portable zip |
 | --- | --- | --- |
-| Intel / AMD (x64) | `Updraft-<version>-win-x64-setup.exe` | `Updraft-<version>-win-x64.zip` |
-| Windows on ARM (Snapdragon X, Surface Pro X…) | `Updraft-<version>-win-arm64-setup.exe` | `Updraft-<version>-win-arm64.zip` |
+| Intel / AMD (x64) | [**Updraft-win-x64-setup.exe**](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe) | [zip](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64.zip) |
+| Windows on ARM (Snapdragon X, Surface Pro X…) | [**Updraft-win-arm64-setup.exe**](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe) | [zip](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64.zip) |
+
+All versions are on the [releases page](https://github.com/bilal8492/updraft/releases).
 
 The installer needs no admin rights by default (it installs for your user), adds a Start menu entry and an uninstaller.
 Prefer portable? Extract the zip anywhere and run `Updraft.exe`.

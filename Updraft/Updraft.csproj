@@ -18,7 +18,7 @@
     <SatelliteResourceLanguages>en-US</SatelliteResourceLanguages>
 
     <!-- App metadata -->
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Product>Updraft</Product>
     <Authors>Bilal Ansari</Authors>
     <Description>A simple, native Windows UI for winget: scan updates, pick apps, install.</Description>
