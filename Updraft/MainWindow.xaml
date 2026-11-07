@@ -34,6 +34,9 @@
             <NavigationViewItem x:Name="NavDiscover" Content="Discover" Tag="discover">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE721;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem x:Name="NavHistory" Content="History" Tag="history">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE81C;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
 
         <Grid Padding="0,0,0,0">
@@ -43,13 +46,14 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="340" />
-                <ColumnDefinition Width="380" />
+                <ColumnDefinition Width="3*" MinWidth="340" />
+                <ColumnDefinition x:Name="DetailCol" Width="2*" MinWidth="320" MaxWidth="460" />
             </Grid.ColumnDefinitions>
 
             <!-- package list -->
             <Grid Grid.Row="0" Grid.Column="0">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
@@ -59,35 +63,95 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <StackPanel>
-                        <TextBlock x:Name="PageTitle" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock x:Name="Subtitle" Opacity="0.65" />
-                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-                            <ComboBox x:Name="SortBox" Header="" MinWidth="150" SelectedIndex="0"
-                                      SelectionChanged="SortBox_SelectionChanged" ToolTipService.ToolTip="Sort by">
-                                <ComboBoxItem Content="Sort: Name A–Z" />
-                                <ComboBoxItem Content="Sort: Name Z–A" />
-                                <ComboBoxItem Content="Sort: Source" />
-                                <ComboBoxItem Content="Sort: Id" />
-                            </ComboBox>
-                            <ComboBox x:Name="SourceBox" MinWidth="130" SelectedIndex="0"
-                                      SelectionChanged="SourceBox_SelectionChanged" ToolTipService.ToolTip="Filter by source">
-                                <ComboBoxItem Content="All sources" />
-                            </ComboBox>
-                            <CheckBox x:Name="ShowSkippedChk" Content="Show skipped" MinWidth="0" Click="ShowSkipped_Click" />
-                        </StackPanel>
+                        <TextBlock x:Name="PageTitle" Style="{StaticResource TitleTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="Subtitle" Opacity="0.65" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel x:Name="ListTools" Grid.Row="1" Grid.ColumnSpan="4" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                        <ComboBox x:Name="SortBox" Header="" MinWidth="150" SelectedIndex="0"
+                                  SelectionChanged="SortBox_SelectionChanged" ToolTipService.ToolTip="Sort by">
+                            <ComboBoxItem Content="Sort: Name A–Z" />
+                            <ComboBoxItem Content="Sort: Name Z–A" />
+                            <ComboBoxItem Content="Sort: Source" />
+                            <ComboBoxItem Content="Sort: Id" />
+                        </ComboBox>
+                        <ComboBox x:Name="SourceBox" MinWidth="130" SelectedIndex="0"
+                                  SelectionChanged="SourceBox_SelectionChanged" ToolTipService.ToolTip="Filter by source">
+                            <ComboBoxItem Content="All sources" />
+                        </ComboBox>
+                        <CheckBox x:Name="ShowSkippedChk" Content="Show skipped" MinWidth="0" Click="ShowSkipped_Click" />
                     </StackPanel>
                     <ProgressRing x:Name="Ring" Grid.Column="1" Width="22" Height="22" IsActive="False" Margin="0,0,12,0" VerticalAlignment="Center" />
-                    <Button x:Name="RefreshBtn" Grid.Column="2" Click="Refresh_Click" VerticalAlignment="Center">
+                    <DropDownButton x:Name="BackupBtn" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Backup and restore"
+                                    ToolTipService.ToolTip="Backup and restore: save your app list, or reinstall apps from a saved list">
+                        <FontIcon Glyph="&#xE8F1;" FontSize="14" />
+                        <DropDownButton.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuFlyoutItem Text="Export installed apps…" Click="Export_Click">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Restore from file…" Click="Import_Click">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B5;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                    <Button x:Name="RefreshBtn" Grid.Column="3" Click="Refresh_Click" VerticalAlignment="Center"
+                            ToolTipService.ToolTip="Rescan (F5)">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE72C;" FontSize="14" />
                             <TextBlock Text="Refresh" />
                         </StackPanel>
                     </Button>
+                    <Button x:Name="ClearHistoryBtn" Grid.Column="3" Click="ClearHistory_Click" VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                            <TextBlock Text="Clear history" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
 
-                <ListView x:Name="PkgList" Grid.Row="1" ItemsSource="{x:Bind Items}"
+                <InfoBar x:Name="WingetBar" Grid.Row="1" Margin="24,0,16,8" IsOpen="False" IsClosable="False"
+                         Severity="Error" Title="winget isn't available"
+                         Message="Updraft needs the Windows Package Manager (winget), which comes with Microsoft's App Installer.">
+                    <InfoBar.ActionButton>
+                        <HyperlinkButton Content="Get App Installer" NavigateUri="ms-windows-store://pdp/?productid=9NBLGGH4NNS1" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+
+                <ListView x:Name="HistList" Grid.Row="2" ItemsSource="{x:Bind HistoryItems}" Visibility="Collapsed"
+                          SelectionMode="None" Padding="12,0,8,0">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:HistoryEntry">
+                            <Grid Padding="0,6" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Summary}" Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis"
+                                               IsTextSelectionEnabled="True" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ResultText}" Foreground="{x:Bind ResultBrush}" FontSize="12"
+                                               HorizontalAlignment="Right" />
+                                    <TextBlock Text="{x:Bind WhenText}" Opacity="0.65" FontSize="11" HorizontalAlignment="Right" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <ListView x:Name="PkgList" Grid.Row="2" ItemsSource="{x:Bind Items}"
                           SelectionMode="Single" SelectionChanged="PkgList_SelectionChanged"
                           Padding="12,0,8,0">
                     <ListView.ItemTemplate>
@@ -116,7 +180,12 @@
                                             <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
                                                     Visibility="{x:Bind SkippedVisibility, Mode=OneWay}"
                                                     BorderBrush="#9D9D9D">
-                                                <TextBlock Text="skipped" FontSize="10" Foreground="#9D9D9D" />
+                                                <TextBlock Text="{x:Bind SkipLabel, Mode=OneWay}" FontSize="10" Foreground="#9D9D9D" />
+                                            </Border>
+                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
+                                                    Visibility="{x:Bind InstalledVisibility, Mode=OneWay}"
+                                                    BorderBrush="#22C55E">
+                                                <TextBlock Text="installed" FontSize="10" Foreground="#22C55E" />
                                             </Border>
                                             <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
                                                     Visibility="{x:Bind SourceVisibility}"
@@ -143,12 +212,12 @@
                     </ListView.ItemTemplate>
                 </ListView>
 
-                <TextBlock x:Name="EmptyMsg" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                <TextBlock x:Name="EmptyMsg" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
                            Opacity="0.6" TextAlignment="Center" />
             </Grid>
 
             <!-- detail pane -->
-            <Border Grid.Row="0" Grid.Column="1" Margin="0,16,16,8" Padding="20"
+            <Border x:Name="DetailPane" Grid.Row="0" Grid.Column="1" Margin="0,16,16,8" Padding="20"
                     CornerRadius="8"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
@@ -199,8 +268,16 @@
                             <Button x:Name="DAction" Style="{StaticResource AccentButtonStyle}" Margin="0,14,0,0"
                                     Click="DAction_Click" />
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                                <Button x:Name="DSkip" Click="DSkip_Click" Visibility="Collapsed"
-                                        ToolTipService.ToolTip="Hide this app from the update list. Stored by Updraft only." />
+                                <DropDownButton x:Name="DSkipMenu" Content="Skip" Visibility="Collapsed"
+                                                ToolTipService.ToolTip="Hide this update from the list. Stored by Updraft only.">
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout Placement="Bottom">
+                                            <MenuFlyoutItem x:Name="DSkipVersion" Text="Skip this version" Click="DSkipVersion_Click" />
+                                            <MenuFlyoutItem Text="Always skip this app" Click="DSkipAlways_Click" />
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+                                <Button x:Name="DSkip" Content="Stop skipping" Click="DSkip_Click" Visibility="Collapsed" />
                                 <Button x:Name="DPin" Click="DPin_Click"
                                         ToolTipService.ToolTip="winget pin: keep this app at its current version" />
                             </StackPanel>
@@ -221,7 +298,7 @@
             </Border>
 
             <!-- action bar -->
-            <Grid Grid.Row="1" Grid.ColumnSpan="2" Padding="24,10,16,10" ColumnSpacing="12"
+            <Grid x:Name="ActionBar" Grid.Row="1" Grid.ColumnSpan="2" Padding="24,10,16,10" ColumnSpacing="12"
                   Background="{ThemeResource LayerFillColorDefaultBrush}"
                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
                 <Grid.ColumnDefinitions>
@@ -233,7 +310,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <CheckBox x:Name="SelectAll" Content="Select all" Click="SelectAll_Click" MinWidth="0" />
-                <TextBlock x:Name="SelCount" Grid.Column="1" VerticalAlignment="Center" Opacity="0.65" />
+                <TextBlock x:Name="SelCount" Grid.Column="1" VerticalAlignment="Center" Opacity="0.65" TextTrimming="CharacterEllipsis" />
                 <CheckBox x:Name="AdminChk" Grid.Column="2" Content="Run as administrator" MinWidth="0" />
                 <Button x:Name="CopyBtn" Grid.Column="3" Content="Copy script" Click="CopyScript_Click" IsEnabled="False" />
                 <Button x:Name="RunBtn" Grid.Column="4" Click="Run_Click" IsEnabled="False">
@@ -242,7 +319,8 @@
                         <TextBlock x:Name="RunText" Text="Run in terminal" />
                     </StackPanel>
                 </Button>
-                <Button x:Name="InstallBtn" Grid.Column="5" Style="{StaticResource AccentButtonStyle}" Click="Install_Click" IsEnabled="False">
+                <Button x:Name="InstallBtn" Grid.Column="5" Style="{StaticResource AccentButtonStyle}" Click="Install_Click" IsEnabled="False"
+                        ToolTipService.ToolTip="Ctrl+Enter to start  ·  Esc to cancel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon x:Name="InstallIcon" Glyph="&#xE768;" FontSize="12" />
                         <TextBlock x:Name="InstallText" Text="Update" />

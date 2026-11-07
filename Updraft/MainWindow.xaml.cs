@@ -6,7 +6,12 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.Windows.Storage.Pickers;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Graphics;
+using Windows.System;
 using Windows.UI;
 
 namespace Updraft;
@@ -20,18 +25,138 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, PkgDetail> _detailCache = new();
 
     public ObservableCollection<Pkg> Items { get; } = new();
+    public ObservableCollection<HistoryEntry> HistoryItems { get; } = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 760));
+        RestorePlacement();
         Title = "Updraft";
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "updraft.ico");
         if (File.Exists(icon)) AppWindow.SetIcon(icon);
         AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
         ApplyTheme();
+        SetupShortcuts();
+        AppWindow.Changed += AppWindow_Changed;
+        AppWindow.Closing += (_, _) => SavePlacement();
         Closed += (_, _) => _runCts?.Cancel();   // don't leave winget running after the window is gone
-        ((FrameworkElement)Content).Loaded += (_, _) => Nav.SelectedItem = NavUp;
+        ((FrameworkElement)Content).Loaded += (_, _) =>
+        {
+            Nav.SelectedItem = NavUp;
+            PkgList.Focus(FocusState.Programmatic);   // so keyboard shortcuts work straight away
+        };
+    }
+
+    // ---------- window placement ----------
+
+    private RectInt32 _normalBounds;   // last size/position while neither minimized nor maximized
+
+    private OverlappedPresenterState PresenterState =>
+        AppWindow.Presenter is OverlappedPresenter op ? op.State : OverlappedPresenterState.Restored;
+
+    private void RestorePlacement()
+    {
+        var s = AppSettings.Current;
+        bool restored = false;
+        if (s.WindowWidth >= 600 && s.WindowHeight >= 400)
+        {
+            // Only reuse the saved spot if its title bar is still on a connected monitor.
+            var titleBar = new PointInt32(s.WindowX + s.WindowWidth / 2, s.WindowY + 16);
+            if (DisplayArea.GetFromPoint(titleBar, DisplayAreaFallback.None) is not null)
+            {
+                AppWindow.MoveAndResize(new RectInt32(s.WindowX, s.WindowY, s.WindowWidth, s.WindowHeight));
+                restored = true;
+            }
+            else
+            {
+                AppWindow.Resize(new SizeInt32(s.WindowWidth, s.WindowHeight));
+            }
+        }
+        if (!restored && s.WindowWidth == 0) AppWindow.Resize(new SizeInt32(1180, 760));
+        _normalBounds = new RectInt32(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+        if (s.WindowMaximized && AppWindow.Presenter is OverlappedPresenter op) op.Maximize();
+    }
+
+    private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if ((args.DidPositionChange || args.DidSizeChange) && PresenterState == OverlappedPresenterState.Restored)
+            _normalBounds = new RectInt32(sender.Position.X, sender.Position.Y, sender.Size.Width, sender.Size.Height);
+    }
+
+    private void SavePlacement()
+    {
+        if (_normalBounds.Width <= 0 || _normalBounds.Height <= 0) return;
+        var s = AppSettings.Current;
+        s.WindowX = _normalBounds.X;
+        s.WindowY = _normalBounds.Y;
+        s.WindowWidth = _normalBounds.Width;
+        s.WindowHeight = _normalBounds.Height;
+        s.WindowMaximized = PresenterState == OverlappedPresenterState.Maximized;
+        s.Save();
+    }
+
+    // ---------- keyboard shortcuts ----------
+
+    private void SetupShortcuts()
+    {
+        Nav.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+
+        void Add(VirtualKey key, VirtualKeyModifiers mods, Func<bool> action)
+        {
+            var acc = new KeyboardAccelerator { Key = key, Modifiers = mods };
+            acc.Invoked += (_, e) => e.Handled = action();   // not handled → the key keeps its normal meaning
+            Nav.KeyboardAccelerators.Add(acc);
+        }
+
+        bool Refresh()
+        {
+            if (_running || _mode == "history" || !RefreshBtn.IsEnabled) return false;
+            _ = LoadAsync();
+            return true;
+        }
+        Add(VirtualKey.F5, VirtualKeyModifiers.None, Refresh);
+        Add(VirtualKey.R, VirtualKeyModifiers.Control, Refresh);
+
+        Add(VirtualKey.F, VirtualKeyModifiers.Control, () => Search.Focus(FocusState.Keyboard));
+        Add(VirtualKey.E, VirtualKeyModifiers.Control, () => Search.Focus(FocusState.Keyboard));
+
+        var pages = new[] { NavUp, NavInstalled, NavDiscover, NavHistory };
+        for (int i = 0; i < pages.Length; i++)
+        {
+            var page = pages[i];
+            Add(VirtualKey.Number1 + i, VirtualKeyModifiers.Control, () =>
+            {
+                if (!Nav.IsEnabled) return false;
+                Nav.SelectedItem = page;
+                return true;
+            });
+        }
+
+        Add(VirtualKey.A, VirtualKeyModifiers.Control, () =>
+        {
+            // Inside a text box Ctrl+A selects the text, as usual.
+            if (FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox or AutoSuggestBox) return false;
+            if (_running || _mode == "history" || Items.Count == 0) return false;
+            bool all = Items.Any(p => !p.IsSelected);
+            foreach (var p in Items) p.IsSelected = all;
+            SelectAll.IsChecked = all;
+            return true;
+        });
+
+        Add(VirtualKey.Enter, VirtualKeyModifiers.Control, () =>
+        {
+            if (_running || _mode == "history" || !Selected.Any()) return false;
+            _ = StartRun(Selected.ToList());
+            return true;
+        });
+
+        Add(VirtualKey.Escape, VirtualKeyModifiers.None, () =>
+        {
+            if (!_running) return false;
+            _runCts?.Cancel();
+            SetStatus("Cancelling…", Amber);
+            return true;
+        });
     }
 
     private NavigationViewItem? _prevNav;
@@ -82,15 +207,14 @@ public sealed partial class MainWindow : Window
         };
         if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
-        new AppSettings
-        {
-            InstallMode = modes[Math.Max(0, mode.SelectedIndex)],
-            AcceptAgreements = agree.IsChecked == true,
-            DefaultAdmin = admin.IsChecked == true,
-            Terminal = terms[Math.Max(0, term.SelectedIndex)],
-            Theme = themes[Math.Max(0, theme.SelectedIndex)],
-            Skipped = s.Skipped,   // not edited here: carry the skip list over
-        }.Save();
+        // Start from a copy so everything the dialog doesn't edit (skips, window placement) is kept.
+        var next = AppSettings.Current.Clone();
+        next.InstallMode = modes[Math.Max(0, mode.SelectedIndex)];
+        next.AcceptAgreements = agree.IsChecked == true;
+        next.DefaultAdmin = admin.IsChecked == true;
+        next.Terminal = terms[Math.Max(0, term.SelectedIndex)];
+        next.Theme = themes[Math.Max(0, theme.SelectedIndex)];
+        next.Save();
 
         AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
         ApplyTheme();
@@ -124,6 +248,13 @@ public sealed partial class MainWindow : Window
 
     private void UpdateFooter()
     {
+        if (_mode == "history")
+        {
+            EmptyMsg.Text = HistoryItems.Count > 0 ? "" : HistoryStore.All.Count > 0 ? "No matches"
+                : "Nothing here yet.\nInstalls, updates and uninstalls you run inside Updraft are listed here.";
+            return;
+        }
+
         int n = Selected.Count();
         int total = Listed.Count();
         SelCount.Text = Items.Count == total
@@ -140,12 +271,27 @@ public sealed partial class MainWindow : Window
         {
             "upgrade" => total > 0 ? "No matches" : "Everything is up to date 🎉",
             "installed" => "No packages",
+            "import" => total > 0 ? "No matches" : "No apps to restore",
             _ => _all.Count > 0 ? "No matches" : "Type a name in the search box and press Enter",
         };
     }
 
     private void ApplyFilter()
     {
+        if (_mode == "history")
+        {
+            var hq = Search.Text.Trim();
+            HistoryItems.Clear();
+            foreach (var h in HistoryStore.All.Where(h => hq.Length == 0
+                         || h.Name.Contains(hq, StringComparison.OrdinalIgnoreCase)
+                         || h.Id.Contains(hq, StringComparison.OrdinalIgnoreCase)
+                         || h.Action.Contains(hq, StringComparison.OrdinalIgnoreCase)
+                         || h.Result.Contains(hq, StringComparison.OrdinalIgnoreCase)))
+                HistoryItems.Add(h);
+            UpdateFooter();
+            return;
+        }
+
         var q = _mode == "discover" ? "" : Search.Text.Trim();
         IEnumerable<Pkg> vis = Listed.Where(p => q.Length == 0
             || p.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
@@ -219,13 +365,34 @@ public sealed partial class MainWindow : Window
         SelectAll.IsChecked = false;
         ShowDetail(null);
 
-        PageTitle.Text = mode switch { "upgrade" => "Upgrades", "installed" => "Installed", _ => "Discover" };
+        PageTitle.Text = mode switch
+        {
+            "upgrade" => "Upgrades",
+            "installed" => "Installed",
+            "history" => "History",
+            "import" => "Restore",
+            _ => "Discover",
+        };
         Subtitle.Text = "";
+
+        if (mode == "history")
+        {
+            int n = HistoryStore.All.Count;
+            Subtitle.Text = n > 0 ? $"{n} entries  ·  stored on this PC only" : "Stored on this PC only";
+            SetBusy(false);
+            ApplyFilter();
+            return;
+        }
 
         string[] args;
         string busyMsg;
         switch (mode)
         {
+            case "import":
+                // Restoring needs to know what's already here, so those apps aren't reinstalled.
+                args = new[] { "list", "--accept-source-agreements" };
+                busyMsg = "Checking which apps are already installed…";
+                break;
             case "upgrade":
                 args = new[] { "upgrade", "--accept-source-agreements" };
                 busyMsg = "Scanning for updates…";
@@ -251,7 +418,8 @@ public sealed partial class MainWindow : Window
         HashSet<string> pins = new(StringComparer.OrdinalIgnoreCase);
         try
         {
-            var listTask = Task.Run(async () => WingetService.Parse(await WingetService.RunAsync(args), mode));
+            var parseMode = mode == "import" ? "installed" : mode;
+            var listTask = Task.Run(async () => WingetService.Parse(await WingetService.RunAsync(args), parseMode));
             // Pins only matter for installed apps (winget leaves pinned ones out of the upgrade list).
             var pinTask = mode == "installed"
                 ? Task.Run(async () => WingetService.ParsePinIds(await WingetService.RunAsync("pin", "list", "--accept-source-agreements")))
@@ -266,16 +434,25 @@ public sealed partial class MainWindow : Window
         {
             if (gen != _gen) return;
             Ring.IsActive = false;
-            SetStatus("winget failed: " + ex.Message, Red);
+            ReportWingetError(ex);
             UpdateFooter();
             return;
         }
         if (gen != _gen) return;
+        WingetBar.IsOpen = false;
+
+        if (mode == "import") result = MatchImport(result);
+        if (mode == "upgrade")
+        {
+            // A version skip ends once winget offers something newer.
+            AppSettings.Current.PruneSkippedVersions(result.GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().Available, StringComparer.OrdinalIgnoreCase));
+        }
 
         foreach (var p in result)
         {
             p.IsPinned = pins.Contains(p.Id);
-            p.IsSkipped = mode == "upgrade" && AppSettings.Current.IsSkipped(p.Id);
+            if (mode == "upgrade") RefreshSkip(p);
             p.PropertyChanged += OnPkgChanged;
             _all.Add(p);
         }
@@ -286,6 +463,7 @@ public sealed partial class MainWindow : Window
         {
             "installed" => pins.Count > 0 ? $"{_all.Count} packages  ·  {_all.Count(p => p.IsPinned)} pinned" : $"{_all.Count} packages",
             "discover" => $"{_all.Count} results for “{q}”",
+            "import" => $"{_all.Count} apps in {_importName}  ·  {_all.Count(p => p.IsInstalled)} already installed",
             _ => "",
         };
         if (mode == "upgrade") RefreshUpgradeCounts();
@@ -349,12 +527,65 @@ public sealed partial class MainWindow : Window
         if (_restoringNav) { _restoringNav = false; return; }   // selection put back after Settings: no reload
         if (args.SelectedItem is not NavigationViewItem item) return;
         _prevNav = item;
-        _mode = (string)item.Tag;
+        _mode = _pendingImport ? "import" : (string)item.Tag;
+        _pendingImport = false;
         if (!_jumpToDiscover) Search.Text = "";
         _jumpToDiscover = false;
-        Search.PlaceholderText = _mode == "discover" ? "Search winget" : "Filter this list";
-        ShowSkippedChk.Visibility = _mode == "upgrade" ? Visibility.Visible : Visibility.Collapsed;
+        ApplyModeLayout();
         _ = LoadAsync();
+    }
+
+    // History is a read-only log: it swaps the package list, detail pane and action bar for its own list.
+    private void ApplyModeLayout()
+    {
+        bool hist = _mode == "history";
+        var show = hist ? Visibility.Collapsed : Visibility.Visible;
+        var showHist = hist ? Visibility.Visible : Visibility.Collapsed;
+        PkgList.Visibility = show;
+        ListTools.Visibility = show;
+        RefreshBtn.Visibility = show;
+        BackupBtn.Visibility = show;
+        DetailPane.Visibility = show;
+        ActionBar.Visibility = show;
+        DetailCol.Width = hist ? new GridLength(0) : new GridLength(2, GridUnitType.Star);
+        DetailCol.MinWidth = hist ? 0 : 320;
+        HistList.Visibility = showHist;
+        ClearHistoryBtn.Visibility = showHist;
+        Search.PlaceholderText = _mode switch { "discover" => "Search winget", "history" => "Filter history", _ => "Filter this list" };
+        ShowSkippedChk.Visibility = _mode == "upgrade" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void ClearHistory_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistoryStore.All.Count == 0) return;
+        var dlg = new ContentDialog
+        {
+            Title = "Clear history?",
+            Content = "This deletes the list of past installs, updates and uninstalls. Your apps aren't affected.",
+            PrimaryButtonText = "Clear",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+        HistoryStore.Clear();
+        Subtitle.Text = "Stored on this PC only";
+        ApplyFilter();
+        SetStatus("History cleared", Green);
+    }
+
+    /// <summary>winget not being installed gets a clear explanation and a fix, not a raw exception message.</summary>
+    private void ReportWingetError(Exception ex)
+    {
+        if (WingetService.IsMissing(ex))
+        {
+            WingetBar.IsOpen = true;
+            SetStatus("winget was not found on this PC", Red);
+        }
+        else
+        {
+            SetStatus("winget failed: " + ex.Message, Red);
+        }
     }
 
     private void Search_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -365,7 +596,14 @@ public sealed partial class MainWindow : Window
 
     private void Search_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        if (_mode != "discover")
+        if (_mode == "import")
+        {
+            // Discover is already the selected nav item while restoring, so switch the mode directly.
+            _mode = "discover";
+            ApplyModeLayout();
+            _ = LoadAsync();
+        }
+        else if (_mode != "discover")
         {
             _jumpToDiscover = true;
             Nav.SelectedItem = NavDiscover;   // triggers the search
@@ -397,7 +635,12 @@ public sealed partial class MainWindow : Window
 
         DName.Text = p.Name;
         DId.Text = $"{p.Id}  ·  {p.Source}";
-        DInst.Text = _mode == "discover" ? "—" : p.Version;
+        DInst.Text = _mode switch
+        {
+            "discover" => "—",
+            "import" => p.IsInstalled ? "Yes" : "No",
+            _ => p.Version,
+        };
         DLatest.Text = p.Available.Length > 0 ? p.Available : p.Version;
         DCmd.Text = WingetService.Command(p, _mode);
         DAction.Content = $"{VerbLabel} {p.Name}";
@@ -438,25 +681,51 @@ public sealed partial class MainWindow : Window
 
     private void UpdatePinSkipButtons(Pkg p)
     {
-        DSkip.Visibility = _mode == "upgrade" ? Visibility.Visible : Visibility.Collapsed;
-        DSkip.Content = p.IsSkipped ? "Stop skipping" : "Skip updates";
-        DPin.Visibility = _mode == "discover" ? Visibility.Collapsed : Visibility.Visible;
+        bool up = _mode == "upgrade";
+        DSkipMenu.Visibility = up && !p.IsSkipped ? Visibility.Visible : Visibility.Collapsed;
+        DSkip.Visibility = up && p.IsSkipped ? Visibility.Visible : Visibility.Collapsed;
+        DSkipVersion.Text = p.Available.Length > 0 ? $"Skip version {p.Available}" : "Skip this version";
+        DSkipVersion.IsEnabled = p.Available.Length > 0;
+        DPin.Visibility = _mode is "discover" or "import" ? Visibility.Collapsed : Visibility.Visible;
         DPin.Content = p.IsPinned ? "Unpin" : "Pin version";
+    }
+
+    private static void RefreshSkip(Pkg p)
+    {
+        var s = AppSettings.Current;
+        p.IsSkipped = s.IsSkipped(p.Id, p.Available);
+        p.SkipLabel = s.SkippedVersionOf(p.Id) is { } v ? $"skipped {v}" : "skipped";
+    }
+
+    private void ApplySkip(Pkg p, string message)
+    {
+        RefreshSkip(p);
+        if (p.IsSkipped) p.IsSelected = false;
+        ApplyFilter();           // a newly skipped row leaves the list (selection clears, detail pane closes)
+        RefreshUpgradeCounts();
+        UpdatePinSkipButtons(p);
+        SetStatus(message, Green);
+    }
+
+    private void DSkipVersion_Click(object sender, RoutedEventArgs e)
+    {
+        if (PkgList.SelectedItem is not Pkg p || p.Available.Length == 0) return;
+        AppSettings.Current.SkipVersion(p.Id, p.Available);
+        ApplySkip(p, $"Skipping {p.Name} {p.Available}. It comes back when a newer version is out.");
+    }
+
+    private void DSkipAlways_Click(object sender, RoutedEventArgs e)
+    {
+        if (PkgList.SelectedItem is not Pkg p) return;
+        AppSettings.Current.SetSkipped(p.Id, true);
+        ApplySkip(p, $"Skipping all updates for {p.Name}. Tick “Show skipped” to see it again.");
     }
 
     private void DSkip_Click(object sender, RoutedEventArgs e)
     {
         if (PkgList.SelectedItem is not Pkg p) return;
-        bool skip = !p.IsSkipped;
-        AppSettings.Current.SetSkipped(p.Id, skip);
-        p.IsSkipped = skip;
-        if (skip) p.IsSelected = false;
-        ApplyFilter();           // a newly skipped row leaves the list (selection clears, detail pane closes)
-        RefreshUpgradeCounts();
-        UpdatePinSkipButtons(p);
-        SetStatus(skip
-            ? $"Skipping {p.Name}. Tick “Show skipped” to see it again."
-            : $"{p.Name} will show up in updates again", Green);
+        AppSettings.Current.SetSkipped(p.Id, false);
+        ApplySkip(p, $"{p.Name} will show up in updates again");
     }
 
     private bool _pinBusy;
@@ -583,6 +852,18 @@ public sealed partial class MainWindow : Window
 
         foreach (var p in safe) { p.ResetRun(); p.SetState(RunState.Queued, "Queued"); }
 
+        void Record(Pkg p, string result, int code) => HistoryStore.Add(new HistoryEntry
+        {
+            When = DateTimeOffset.Now,
+            Action = verb,
+            Name = p.Name,
+            Id = p.Id,
+            FromVersion = mode is "upgrade" or "installed" ? p.Version : "",
+            ToVersion = mode switch { "upgrade" => p.Available, "discover" => p.Version, _ => "" },
+            Result = result,
+            ExitCode = code,
+        });
+
         int ok = 0, failed = 0, cancelled = 0;
         var removed = new List<Pkg>();   // uninstalled apps: they leave the Installed list once the run ends
         for (int i = 0; i < safe.Count; i++)
@@ -604,18 +885,22 @@ public sealed partial class MainWindow : Window
                 {
                     p.SetState(RunState.Cancelled, "Cancelled");
                     cancelled++;
+                    Record(p, "Cancelled", code);
                 }
                 else if (WingetService.IsSuccess(code))
                 {
                     p.SetState(RunState.Succeeded, code != 0 ? "Already up to date" : mode == "installed" ? "Uninstalled" : "Done");
                     p.IsSelected = false;
+                    if (mode == "import") p.IsInstalled = true;
                     ok++;
                     if (mode == "installed" && code == 0) removed.Add(p);
+                    Record(p, "Succeeded", code);
                 }
                 else
                 {
                     p.SetState(RunState.Failed, $"Failed (exit code 0x{code:X8})");
                     failed++;
+                    Record(p, "Failed", code);
                 }
             }
             catch (Exception ex)
@@ -623,6 +908,8 @@ public sealed partial class MainWindow : Window
                 p.AppendLog(ex.Message);
                 p.SetState(RunState.Failed, "Failed: " + ex.Message);
                 failed++;
+                Record(p, "Failed", 0);
+                if (WingetService.IsMissing(ex)) WingetBar.IsOpen = true;
             }
         }
 
@@ -654,9 +941,142 @@ public sealed partial class MainWindow : Window
     {
         Nav.IsEnabled = !locked;
         RefreshBtn.IsEnabled = !locked;
+        BackupBtn.IsEnabled = !locked;
         SelectAll.IsEnabled = !locked;
         DAction.IsEnabled = !locked;
         UpdateFooter();
+    }
+
+    // ---------- backup & restore ----------
+
+    private List<Pkg>? _importPkgs;     // packages read from the chosen export file
+    private string _importName = "";
+    private bool _pendingImport;        // the next nav selection opens the restore list
+
+    private async void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running) return;
+        string path;
+        try
+        {
+            var picker = new FileSavePicker(AppWindow.Id)
+            {
+                SuggestedFileName = $"winget-apps-{DateTime.Now:yyyy-MM-dd}",
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+            };
+            picker.FileTypeChoices.Add("winget app list", new List<string> { ".json" });
+            var res = await picker.PickSaveFileAsync();
+            if (res is null) return;
+            path = res.Path;
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Could not open the save dialog: " + ex.Message, Red);
+            return;
+        }
+
+        BackupBtn.IsEnabled = false;
+        SetStatus("Exporting installed apps…", Amber);
+        try
+        {
+            var (code, output) = await Task.Run(() =>
+                WingetService.RunCaptureAsync("export", "-o", path, "--accept-source-agreements"));
+            int n = 0;
+            try { n = BackupFile.Parse(await File.ReadAllTextAsync(path)).Count; } catch { /* reported below */ }
+            if (n == 0)
+            {
+                var why = WingetService.LastLine(output);
+                SetStatus("Export failed" + (why.Length > 0 ? ": " + why : $" (exit code 0x{code:X8})"), Red);
+            }
+            else
+            {
+                SetStatus($"Exported {n} apps to {Path.GetFileName(path)}. Use Backup → Restore on any PC to reinstall them.", Green);
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportWingetError(ex);
+        }
+        finally
+        {
+            BackupBtn.IsEnabled = !_running;
+        }
+    }
+
+    private async void Import_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running) return;
+        string path;
+        try
+        {
+            var picker = new FileOpenPicker(AppWindow.Id) { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
+            picker.FileTypeFilter.Add(".json");
+            var res = await picker.PickSingleFileAsync();
+            if (res is null) return;
+            path = res.Path;
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Could not open the file dialog: " + ex.Message, Red);
+            return;
+        }
+
+        List<Pkg> pkgs;
+        try
+        {
+            if (new FileInfo(path).Length > 5 * 1024 * 1024) throw new FormatException("The file is too large to be an app list.");
+            pkgs = BackupFile.Parse(await File.ReadAllTextAsync(path));
+        }
+        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+        {
+            SetStatus("Can't restore from that file: " + ex.Message, Red);
+            return;
+        }
+        if (pkgs.Count == 0)
+        {
+            SetStatus("That file doesn't list any apps", Amber);
+            return;
+        }
+
+        _importPkgs = pkgs;
+        _importName = Path.GetFileName(path);
+        Search.Text = "";
+        if (ReferenceEquals(Nav.SelectedItem, NavDiscover))
+        {
+            _mode = "import";
+            ApplyModeLayout();
+            _ = LoadAsync();
+        }
+        else
+        {
+            _pendingImport = true;
+            Nav.SelectedItem = NavDiscover;   // restoring is installing, so it lives under Discover
+        }
+    }
+
+    /// <summary>Turns the saved list into rows, marking what's already installed and ticking the rest.</summary>
+    private List<Pkg> MatchImport(List<Pkg> installed)
+    {
+        var have = installed.GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var rows = new List<Pkg>();
+        foreach (var t in _importPkgs ?? new())
+        {
+            var p = new Pkg { Name = t.Name, Id = t.Id, Version = t.Version, Source = t.Source };
+            if (have.TryGetValue(t.Id, out var i))
+            {
+                p.IsInstalled = true;
+                if (i.Name.Length > 0) p.Name = i.Name;
+                if (p.Version.Length == 0) p.Version = i.Version;
+            }
+            else
+            {
+                p.IsSelected = true;
+            }
+            if (p.Version.Length == 0) p.Version = "latest";   // winget installs the newest version
+            rows.Add(p);
+        }
+        return rows;
     }
 
     // ---------- selection / script ----------
