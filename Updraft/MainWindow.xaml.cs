@@ -57,7 +57,9 @@ public sealed partial class MainWindow : Window
     private void UpdateFooter()
     {
         int n = Selected.Count();
-        SelCount.Text = $"{n} selected  ·  {Items.Count} shown";
+        SelCount.Text = Items.Count == _all.Count
+            ? $"{n} selected  ·  {Items.Count} shown"
+            : $"{n} selected  ·  {Items.Count} of {_all.Count} shown";
         RunBtn.IsEnabled = n > 0;
         CopyBtn.IsEnabled = n > 0;
         RunText.Text = n > 0 ? $"{VerbLabel} {n} in terminal" : "Run in terminal";
@@ -73,13 +75,64 @@ public sealed partial class MainWindow : Window
     private void ApplyFilter()
     {
         var q = _mode == "discover" ? "" : Search.Text.Trim();
-        var vis = _all.Where(p => q.Length == 0
+        IEnumerable<Pkg> vis = _all.Where(p => q.Length == 0
             || p.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || p.Id.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+            || p.Id.Contains(q, StringComparison.OrdinalIgnoreCase));
+
+        if (_sourceFilter.Length > 0)
+            vis = vis.Where(p => string.Equals(p.Source, _sourceFilter, StringComparison.OrdinalIgnoreCase));
+
+        vis = SortBox.SelectedIndex switch
+        {
+            1 => vis.OrderByDescending(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
+            2 => vis.OrderBy(p => p.Source, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
+            3 => vis.OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase),
+            _ => vis.OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
+        };
+
         Items.Clear();
         foreach (var p in vis) Items.Add(p);
         UpdateFooter();
     }
+
+    private string _sourceFilter = "";      // "" = all sources
+    private bool _rebuildingSources;
+
+    // Rebuild the source dropdown from what the current list actually contains.
+    private void RefreshSourceChoices()
+    {
+        _rebuildingSources = true;
+        SourceBox.Items.Clear();
+        SourceBox.Items.Add(new ComboBoxItem { Content = "All sources" });
+        var sources = _all.Select(p => p.Source).Where(s => s.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+        int sel = 0, i = 1;
+        foreach (var s in sources)
+        {
+            SourceBox.Items.Add(new ComboBoxItem { Content = s });
+            if (string.Equals(s, _sourceFilter, StringComparison.OrdinalIgnoreCase)) sel = i;
+            i++;
+        }
+        if (sel == 0) _sourceFilter = "";
+        SourceBox.SelectedIndex = sel;
+        _rebuildingSources = false;
+    }
+
+    private void SortBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded()) ApplyFilter();
+    }
+
+    private void SourceBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_rebuildingSources || !IsLoaded()) return;
+        _sourceFilter = SourceBox.SelectedIndex > 0 && SourceBox.SelectedItem is ComboBoxItem it
+            ? (string)it.Content : "";
+        ApplyFilter();
+    }
+
+    // The ComboBoxes fire SelectionChanged during InitializeComponent, before the rest of the UI exists.
+    private bool IsLoaded() => Search is not null && SelCount is not null;
 
     // ---------- loading ----------
 
@@ -142,8 +195,14 @@ public sealed partial class MainWindow : Window
             p.PropertyChanged += OnPkgChanged;
             _all.Add(p);
         }
+        RefreshSourceChoices();
         ApplyFilter();
         SetBusy(false);
+        if (mode == "upgrade")
+        {
+            UpBadge.Value = _all.Count;
+            UpBadge.Visibility = _all.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
         Subtitle.Text = mode switch
         {
             "upgrade" => _all.Count > 0 ? $"{_all.Count} updates available" : "All packages are up to date",

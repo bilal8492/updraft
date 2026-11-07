@@ -24,6 +24,9 @@
         <NavigationView.MenuItems>
             <NavigationViewItem x:Name="NavUp" Content="Upgrades" Tag="upgrade">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE898;" /></NavigationViewItem.Icon>
+                <NavigationViewItem.InfoBadge>
+                    <InfoBadge x:Name="UpBadge" Visibility="Collapsed" />
+                </NavigationViewItem.InfoBadge>
             </NavigationViewItem>
             <NavigationViewItem x:Name="NavInstalled" Content="Installed" Tag="installed">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" /></NavigationViewItem.Icon>
@@ -60,6 +63,19 @@
                     <StackPanel>
                         <TextBlock x:Name="PageTitle" Style="{StaticResource TitleTextBlockStyle}" />
                         <TextBlock x:Name="Subtitle" Opacity="0.65" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                            <ComboBox x:Name="SortBox" Header="" MinWidth="150" SelectedIndex="0"
+                                      SelectionChanged="SortBox_SelectionChanged" ToolTipService.ToolTip="Sort by">
+                                <ComboBoxItem Content="Sort: Name A–Z" />
+                                <ComboBoxItem Content="Sort: Name Z–A" />
+                                <ComboBoxItem Content="Sort: Source" />
+                                <ComboBoxItem Content="Sort: Id" />
+                            </ComboBox>
+                            <ComboBox x:Name="SourceBox" MinWidth="130" SelectedIndex="0"
+                                      SelectionChanged="SourceBox_SelectionChanged" ToolTipService.ToolTip="Filter by source">
+                                <ComboBoxItem Content="All sources" />
+                            </ComboBox>
+                        </StackPanel>
                     </StackPanel>
                     <ProgressRing x:Name="Ring" Grid.Column="1" Width="22" Height="22" IsActive="False" Margin="0,0,12,0" VerticalAlignment="Center" />
                     <Button x:Name="RefreshBtn" Grid.Column="2" Click="Refresh_Click" VerticalAlignment="Center">
