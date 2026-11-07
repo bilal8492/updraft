@@ -1,0 +1,36 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+publish/
+artifacts/
+*.zip
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+.vscode/
+
+# Local tooling and secrets: never commit these
+.claude/
+.env
+.env.*
+*.pfx
+*.p12
+*.snk
+*.key
+*.pem
+secrets.*
+appsettings.Development.json
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# NuGet
+*.nupkg
+packages/

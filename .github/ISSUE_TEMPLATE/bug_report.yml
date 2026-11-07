@@ -1,0 +1,40 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: input
+    id: version
+    attributes:
+      label: Updraft version
+      placeholder: "0.1.0"
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      options: [x64, ARM64]
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+  - type: input
+    id: winget
+    attributes:
+      label: winget version (`winget --version`)
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant `winget` output
+      description: For parsing problems, paste the output of `winget upgrade`. Remove anything private first.
+      render: text
