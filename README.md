@@ -57,6 +57,8 @@ Download the installer for your CPU and run it (direct links, always the newest 
 
 All versions are on the [releases page](https://github.com/bilal8492/updraft/releases).
 
+An **MSIX** package is also built for the Microsoft Store and for sideloading; see [packaging/README.md](packaging/README.md).
+
 The installer needs no admin rights by default (it installs for your user), adds a Start menu entry and an uninstaller.
 Prefer portable? Extract the zip anywhere and run `Updraft.exe`.
 

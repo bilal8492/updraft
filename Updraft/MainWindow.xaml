@@ -13,7 +13,7 @@
                     PaneDisplayMode="Left"
                     OpenPaneLength="220"
                     IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="False"
+                    IsSettingsVisible="True"
                     SelectionChanged="Nav_SelectionChanged">
 
         <NavigationView.AutoSuggestBox>
@@ -24,6 +24,9 @@
         <NavigationView.MenuItems>
             <NavigationViewItem x:Name="NavUp" Content="Upgrades" Tag="upgrade">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE898;" /></NavigationViewItem.Icon>
+                <NavigationViewItem.InfoBadge>
+                    <InfoBadge x:Name="UpBadge" Visibility="Collapsed" />
+                </NavigationViewItem.InfoBadge>
             </NavigationViewItem>
             <NavigationViewItem x:Name="NavInstalled" Content="Installed" Tag="installed">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" /></NavigationViewItem.Icon>
@@ -60,6 +63,20 @@
                     <StackPanel>
                         <TextBlock x:Name="PageTitle" Style="{StaticResource TitleTextBlockStyle}" />
                         <TextBlock x:Name="Subtitle" Opacity="0.65" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                            <ComboBox x:Name="SortBox" Header="" MinWidth="150" SelectedIndex="0"
+                                      SelectionChanged="SortBox_SelectionChanged" ToolTipService.ToolTip="Sort by">
+                                <ComboBoxItem Content="Sort: Name A–Z" />
+                                <ComboBoxItem Content="Sort: Name Z–A" />
+                                <ComboBoxItem Content="Sort: Source" />
+                                <ComboBoxItem Content="Sort: Id" />
+                            </ComboBox>
+                            <ComboBox x:Name="SourceBox" MinWidth="130" SelectedIndex="0"
+                                      SelectionChanged="SourceBox_SelectionChanged" ToolTipService.ToolTip="Filter by source">
+                                <ComboBoxItem Content="All sources" />
+                            </ComboBox>
+                            <CheckBox x:Name="ShowSkippedChk" Content="Show skipped" MinWidth="0" Click="ShowSkipped_Click" />
+                        </StackPanel>
                     </StackPanel>
                     <ProgressRing x:Name="Ring" Grid.Column="1" Width="22" Height="22" IsActive="False" Margin="0,0,12,0" VerticalAlignment="Center" />
                     <Button x:Name="RefreshBtn" Grid.Column="2" Click="Refresh_Click" VerticalAlignment="Center">
@@ -83,17 +100,43 @@
                                 </Grid.ColumnDefinitions>
                                 <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}" MinWidth="0" Margin="0,0,8,0" VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="420" />
-                                        <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
-                                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}">
-                                            <TextBlock Text="{x:Bind Source}" FontSize="10"
-                                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                        </Border>
-                                    </StackPanel>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                   ToolTipService.ToolTip="{x:Bind Name}" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
+                                                    Visibility="{x:Bind PinnedVisibility, Mode=OneWay}"
+                                                    BorderBrush="#F59E0B">
+                                                <TextBlock Text="pinned" FontSize="10" Foreground="#F59E0B" />
+                                            </Border>
+                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
+                                                    Visibility="{x:Bind SkippedVisibility, Mode=OneWay}"
+                                                    BorderBrush="#9D9D9D">
+                                                <TextBlock Text="skipped" FontSize="10" Foreground="#9D9D9D" />
+                                            </Border>
+                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
+                                                    Visibility="{x:Bind SourceVisibility}"
+                                                    BorderBrush="{x:Bind SourceBrush}">
+                                                <TextBlock Text="{x:Bind SourceLabel}" FontSize="10"
+                                                           Foreground="{x:Bind SourceBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
                                     <TextBlock Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis">
                                         <Run Text="{x:Bind Id}" /><Run Text="   ·   " /><Run Text="{x:Bind VersionText}" />
                                     </TextBlock>
+                                        <ProgressBar Margin="0,4,0,0" Height="3"
+                                                 Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
+                                                 IsIndeterminate="{x:Bind Indeterminate, Mode=OneWay}"
+                                                 Value="{x:Bind Progress, Mode=OneWay}" Maximum="100" />
+                                    <TextBlock FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"
+                                               Visibility="{x:Bind StatusVisibility, Mode=OneWay}"
+                                               Text="{x:Bind RunStatus, Mode=OneWay}"
+                                               Foreground="{x:Bind StatusBrush, Mode=OneWay}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -155,6 +198,23 @@
 
                             <Button x:Name="DAction" Style="{StaticResource AccentButtonStyle}" Margin="0,14,0,0"
                                     Click="DAction_Click" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                                <Button x:Name="DSkip" Click="DSkip_Click" Visibility="Collapsed"
+                                        ToolTipService.ToolTip="Hide this app from the update list. Stored by Updraft only." />
+                                <Button x:Name="DPin" Click="DPin_Click"
+                                        ToolTipService.ToolTip="winget pin: keep this app at its current version" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="DLogPanel" Visibility="Collapsed" Margin="0,16,0,0">
+                                <Grid>
+                                    <TextBlock Text="Output" Opacity="0.65" FontSize="12" VerticalAlignment="Center" />
+                                    <Button x:Name="DCopyLog" Content="Copy log" HorizontalAlignment="Right" Click="DCopyLog_Click" />
+                                </Grid>
+                                <Border CornerRadius="6" Padding="12" Margin="0,4,0,0" Background="#1E1F24">
+                                    <TextBlock x:Name="DLog" FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                               Foreground="#D7DAE0" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                </Border>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -170,15 +230,22 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <CheckBox x:Name="SelectAll" Content="Select all" Click="SelectAll_Click" MinWidth="0" />
                 <TextBlock x:Name="SelCount" Grid.Column="1" VerticalAlignment="Center" Opacity="0.65" />
                 <CheckBox x:Name="AdminChk" Grid.Column="2" Content="Run as administrator" MinWidth="0" />
                 <Button x:Name="CopyBtn" Grid.Column="3" Content="Copy script" Click="CopyScript_Click" IsEnabled="False" />
-                <Button x:Name="RunBtn" Grid.Column="4" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" IsEnabled="False">
+                <Button x:Name="RunBtn" Grid.Column="4" Click="Run_Click" IsEnabled="False">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE768;" FontSize="12" />
+                        <FontIcon Glyph="&#xE756;" FontSize="12" />
                         <TextBlock x:Name="RunText" Text="Run in terminal" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="InstallBtn" Grid.Column="5" Style="{StaticResource AccentButtonStyle}" Click="Install_Click" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon x:Name="InstallIcon" Glyph="&#xE768;" FontSize="12" />
+                        <TextBlock x:Name="InstallText" Text="Update" />
                     </StackPanel>
                 </Button>
             </Grid>

@@ -38,11 +38,131 @@ public static class WingetService
     /// </summary>
     public static bool IsSafeId(string id) => Regex.IsMatch(id, @"^\w[\w.+\-]*$");
 
-    public static string Command(Pkg p, string mode)
+    /// <summary>Runs winget to completion and returns its exit code plus stdout and stderr combined.</summary>
+    public static async Task<(int Code, string Output)> RunCaptureAsync(params string[] args)
+    {
+        var psi = new ProcessStartInfo("winget")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var a in args) psi.ArgumentList.Add(a);
+
+        using var p = Process.Start(psi) ?? throw new InvalidOperationException("Could not start winget");
+        p.StandardInput.Close();
+        var so = p.StandardOutput.ReadToEndAsync();
+        var se = p.StandardError.ReadToEndAsync();
+        await p.WaitForExitAsync();
+        return (p.ExitCode, (await so) + (await se));
+    }
+
+    /// <summary>Ids of packages that have a pin, from `winget pin list`. The Id column is the second one in that table.</summary>
+    public static HashSet<string> ParsePinIds(string text) =>
+        Parse(text, "installed").Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The last meaningful line of winget output, for showing why something failed.</summary>
+    public static string LastLine(string output)
+    {
+        var lines = output.Split('\n').Select(l => l.Split('\r').LastOrDefault(s => s.Trim().Length > 0) ?? "")
+            .Select(l => l.Trim()).Where(l => l.Length > 0 && !l.All(c => c is '-' or '\\' or '|' or '/'));
+        return lines.LastOrDefault() ?? "";
+    }
+
+    /// <summary>The winget arguments for one package, shared by the copied script and the in-app runner.</summary>
+    public static List<string> Args(Pkg p, string mode)
     {
         var v = Verb(mode);
-        var flags = v == "uninstall" ? "" : " --accept-package-agreements --accept-source-agreements";
-        return $"winget {v} --id {p.Id} -e{flags}";
+        var s = AppSettings.Current;
+        var args = new List<string> { v, "--id", p.Id, "-e" };
+        if (v != "uninstall" && s.AcceptAgreements)
+        {
+            args.Add("--accept-package-agreements");
+            args.Add("--accept-source-agreements");
+        }
+        if (s.InstallMode == "silent") args.Add("--silent");
+        else if (s.InstallMode == "interactive") args.Add("--interactive");
+        return args;
+    }
+
+    public static string Command(Pkg p, string mode) => "winget " + string.Join(' ', Args(p, mode));
+
+    // winget exit codes that mean "nothing left to do" rather than a failure.
+    private static readonly HashSet<uint> BenignExitCodes = new() { 0x8A15002B /* no applicable update */, 0x8A150061 /* already installed */ };
+
+    public static bool IsSuccess(int exitCode) => exitCode == 0 || BenignExitCodes.Contains(unchecked((uint)exitCode));
+
+    /// <summary>
+    /// Runs winget for one package with no window, streaming cleaned-up output into the package's log and status.
+    /// Must be called from the UI thread: the output pumps resume there, so Pkg updates are safe.
+    /// </summary>
+    public static async Task<int> RunPackageAsync(Pkg p, string mode, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo("winget")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var a in Args(p, mode)) psi.ArgumentList.Add(a);   // ArgumentList: no shell, no quoting issues
+
+        using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Could not start winget");
+        proc.StandardInput.Close();   // never wait for a prompt nobody can answer
+        using var reg = ct.Register(() => { try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ } });
+
+        var pumps = Task.WhenAll(PumpAsync(proc.StandardOutput, p), PumpAsync(proc.StandardError, p));
+        await proc.WaitForExitAsync();
+        await pumps;
+        return proc.ExitCode;
+    }
+
+    private static readonly Regex Percent = new(@"(\d{1,3})\s*%", RegexOptions.Compiled);
+    private static readonly Regex Sizes = new(@"^[\d.,]+\s*[KMGT]?i?B\s*/\s*[\d.,]+\s*[KMGT]?i?B$", RegexOptions.Compiled);
+
+    private static async Task PumpAsync(StreamReader reader, Pkg p)
+    {
+        var buf = new char[1024];
+        var line = new StringBuilder();
+        int n;
+        while ((n = await reader.ReadAsync(buf, 0, buf.Length)) > 0)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                if (buf[i] is '\r' or '\n') Handle(line, p);   // winget redraws progress with \r, so treat it as a line end
+                else line.Append(buf[i]);
+            }
+        }
+        Handle(line, p);
+    }
+
+    private static void Handle(StringBuilder sb, Pkg p)
+    {
+        var text = sb.ToString().Trim();
+        sb.Clear();
+        if (text.Length == 0) return;
+        if (text.All(c => c is '-' or '\\' or '|' or '/')) return;   // spinner frames
+
+        bool bar = text.Contains('█') || text.Contains('▒');
+        var m = Percent.Match(text);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var pct) && pct <= 100) p.SetProgress(pct);
+
+        if (bar || Sizes.IsMatch(text))
+        {
+            // Progress redraws: show the latest one as status, but keep them out of the log.
+            if (Sizes.IsMatch(text)) p.SetStatusText("Downloading  " + text);
+            return;
+        }
+
+        p.AppendLog(text);
+        p.SetStatusText(text.Length > 90 ? text[..90] + "…" : text);
     }
 
     /// <summary>Parses winget's fixed-width table. Column positions come from the header line, so it works in any UI language.</summary>
