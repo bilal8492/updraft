@@ -117,6 +117,14 @@
                                     <TextBlock Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis">
                                         <Run Text="{x:Bind Id}" /><Run Text="   ·   " /><Run Text="{x:Bind VersionText}" />
                                     </TextBlock>
+                                        <ProgressBar Margin="0,4,0,0" Height="3"
+                                                 Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
+                                                 IsIndeterminate="{x:Bind Indeterminate, Mode=OneWay}"
+                                                 Value="{x:Bind Progress, Mode=OneWay}" Maximum="100" />
+                                    <TextBlock FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"
+                                               Visibility="{x:Bind StatusVisibility, Mode=OneWay}"
+                                               Text="{x:Bind RunStatus, Mode=OneWay}"
+                                               Foreground="{x:Bind StatusBrush, Mode=OneWay}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -178,6 +186,17 @@
 
                             <Button x:Name="DAction" Style="{StaticResource AccentButtonStyle}" Margin="0,14,0,0"
                                     Click="DAction_Click" />
+
+                            <StackPanel x:Name="DLogPanel" Visibility="Collapsed" Margin="0,16,0,0">
+                                <Grid>
+                                    <TextBlock Text="Output" Opacity="0.65" FontSize="12" VerticalAlignment="Center" />
+                                    <Button x:Name="DCopyLog" Content="Copy log" HorizontalAlignment="Right" Click="DCopyLog_Click" />
+                                </Grid>
+                                <Border CornerRadius="6" Padding="12" Margin="0,4,0,0" Background="#1E1F24">
+                                    <TextBlock x:Name="DLog" FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                               Foreground="#D7DAE0" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                </Border>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -193,15 +212,22 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <CheckBox x:Name="SelectAll" Content="Select all" Click="SelectAll_Click" MinWidth="0" />
                 <TextBlock x:Name="SelCount" Grid.Column="1" VerticalAlignment="Center" Opacity="0.65" />
                 <CheckBox x:Name="AdminChk" Grid.Column="2" Content="Run as administrator" MinWidth="0" />
                 <Button x:Name="CopyBtn" Grid.Column="3" Content="Copy script" Click="CopyScript_Click" IsEnabled="False" />
-                <Button x:Name="RunBtn" Grid.Column="4" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" IsEnabled="False">
+                <Button x:Name="RunBtn" Grid.Column="4" Click="Run_Click" IsEnabled="False">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE768;" FontSize="12" />
+                        <FontIcon Glyph="&#xE756;" FontSize="12" />
                         <TextBlock x:Name="RunText" Text="Run in terminal" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="InstallBtn" Grid.Column="5" Style="{StaticResource AccentButtonStyle}" Click="Install_Click" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon x:Name="InstallIcon" Glyph="&#xE768;" FontSize="12" />
+                        <TextBlock x:Name="InstallText" Text="Update" />
                     </StackPanel>
                 </Button>
             </Grid>

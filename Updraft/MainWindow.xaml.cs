@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
         if (File.Exists(icon)) AppWindow.SetIcon(icon);
         AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
         ApplyTheme();
+        Closed += (_, _) => _runCts?.Cancel();   // don't leave winget running after the window is gone
         ((FrameworkElement)Content).Loaded += (_, _) => Nav.SelectedItem = NavUp;
     }
 
@@ -125,9 +126,12 @@ public sealed partial class MainWindow : Window
         SelCount.Text = Items.Count == _all.Count
             ? $"{n} selected  ·  {Items.Count} shown"
             : $"{n} selected  ·  {Items.Count} of {_all.Count} shown";
-        RunBtn.IsEnabled = n > 0;
-        CopyBtn.IsEnabled = n > 0;
+        RunBtn.IsEnabled = n > 0 && !_running;
+        CopyBtn.IsEnabled = n > 0 && !_running;
         RunText.Text = n > 0 ? $"{VerbLabel} {n} in terminal" : "Run in terminal";
+        InstallBtn.IsEnabled = _running || n > 0;
+        InstallIcon.Glyph = _running ? "" : "";   // cancel / play
+        InstallText.Text = _running ? "Cancel" : n > 0 ? $"{VerbLabel} {n}" : VerbLabel;
 
         EmptyMsg.Text = Items.Count > 0 || Ring.IsActive ? "" : _mode switch
         {
@@ -276,7 +280,25 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    private void OnPkgChanged(object? s, PropertyChangedEventArgs e) => UpdateFooter();
+    private void OnPkgChanged(object? s, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Pkg.IsSelected)) UpdateFooter();
+        else if (e.PropertyName == nameof(Pkg.Log) && ReferenceEquals(s, PkgList.SelectedItem)) ShowLog(s as Pkg);
+    }
+
+    private void ShowLog(Pkg? p)
+    {
+        var log = p?.Log ?? "";
+        DLogPanel.Visibility = log.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DLog.Text = log;
+    }
+
+    private void DCopyLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (PkgList.SelectedItem is not Pkg p) return;
+        CopyText(p.Log);
+        SetStatus("Log copied", Green);
+    }
 
     // ---------- navigation & search ----------
 
@@ -336,6 +358,7 @@ public sealed partial class MainWindow : Window
         }
         DEmpty.Visibility = Visibility.Collapsed;
         DPanel.Visibility = Visibility.Visible;
+        ShowLog(p);
 
         DName.Text = p.Name;
         DId.Text = $"{p.Id}  ·  {p.Source}";
@@ -371,7 +394,113 @@ public sealed partial class MainWindow : Window
 
     private void DAction_Click(object sender, RoutedEventArgs e)
     {
-        if (PkgList.SelectedItem is Pkg p) RunInTerminal(new[] { p });
+        if (_running || PkgList.SelectedItem is not Pkg p) return;
+        StartRun(new[] { p });
+    }
+
+    // ---------- in-app runner ----------
+
+    private bool _running;
+    private CancellationTokenSource? _runCts;
+
+    private void Install_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running) { _runCts?.Cancel(); SetStatus("Cancelling…", Amber); return; }
+        StartRun(Selected.ToList());
+    }
+
+    // Elevation can't be combined with captured output, so "Run as administrator" keeps using the terminal.
+    private void StartRun(IReadOnlyList<Pkg> pkgs)
+    {
+        if (AdminChk.IsChecked == true)
+        {
+            RunInTerminal(pkgs);
+            return;
+        }
+        _ = RunInAppAsync(pkgs);
+    }
+
+    private async Task RunInAppAsync(IReadOnlyList<Pkg> pkgs)
+    {
+        if (pkgs.Count == 0) return;
+        var safe = pkgs.Where(p => WingetService.IsSafeId(p.Id)).ToList();
+        if (safe.Count == 0)
+        {
+            SetStatus("Skipped: the package id looks unsafe or truncated", Red);
+            return;
+        }
+
+        string mode = _mode;
+        string verb = VerbLabel;
+        _running = true;
+        _runCts = new CancellationTokenSource();
+        var ct = _runCts.Token;
+        SetRunLock(true);
+
+        foreach (var p in safe) { p.ResetRun(); p.SetState(RunState.Queued, "Queued"); }
+
+        int ok = 0, failed = 0, cancelled = 0;
+        for (int i = 0; i < safe.Count; i++)
+        {
+            var p = safe[i];
+            if (ct.IsCancellationRequested)
+            {
+                p.SetState(RunState.Cancelled, "Cancelled");
+                cancelled++;
+                continue;
+            }
+
+            p.SetState(RunState.Running, "Starting…");
+            SetStatus($"{verb} {p.Name}  ({i + 1} of {safe.Count})", Amber);
+            try
+            {
+                int code = await WingetService.RunPackageAsync(p, mode, ct);
+                if (ct.IsCancellationRequested)
+                {
+                    p.SetState(RunState.Cancelled, "Cancelled");
+                    cancelled++;
+                }
+                else if (WingetService.IsSuccess(code))
+                {
+                    p.SetState(RunState.Succeeded, code == 0 ? "Done" : "Already up to date");
+                    p.IsSelected = false;
+                    ok++;
+                }
+                else
+                {
+                    p.SetState(RunState.Failed, $"Failed (exit code 0x{code:X8})");
+                    failed++;
+                }
+            }
+            catch (Exception ex)
+            {
+                p.AppendLog(ex.Message);
+                p.SetState(RunState.Failed, "Failed: " + ex.Message);
+                failed++;
+            }
+        }
+
+        _running = false;
+        _runCts.Dispose();
+        _runCts = null;
+        SetRunLock(false);
+
+        var parts = new List<string>();
+        if (ok > 0) parts.Add($"{ok} succeeded");
+        if (failed > 0) parts.Add($"{failed} failed");
+        if (cancelled > 0) parts.Add($"{cancelled} cancelled");
+        SetStatus(string.Join(", ", parts) + (failed + cancelled > 0 ? " — unfinished items stay selected so you can retry" : " — press Refresh to rescan"),
+            failed > 0 ? Red : cancelled > 0 ? Amber : Green);
+    }
+
+    // While a run is going, block anything that would reload or replace the list under it.
+    private void SetRunLock(bool locked)
+    {
+        Nav.IsEnabled = !locked;
+        RefreshBtn.IsEnabled = !locked;
+        SelectAll.IsEnabled = !locked;
+        DAction.IsEnabled = !locked;
+        UpdateFooter();
     }
 
     // ---------- selection / script ----------
