@@ -14,7 +14,7 @@ using Windows.Graphics;
 using Windows.System;
 using Windows.UI;
 
-namespace Updraft;
+namespace UpInstall;
 
 public sealed partial class MainWindow : Window
 {
@@ -51,8 +51,8 @@ public sealed partial class MainWindow : Window
             op.PreferredMinimumHeight = Scaled(560);
         }
         RestorePlacement();
-        Title = "Updraft";
-        var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "updraft.ico");
+        Title = "UpInstall";
+        var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "upinstall.ico");
         if (File.Exists(icon)) AppWindow.SetIcon(icon);
         _taskbar = new Taskbar(hwnd);
 
@@ -1047,7 +1047,7 @@ public sealed partial class MainWindow : Window
             list.Children.Add(new TextBlock { Text = $"…and {pkgs.Count - shown} more", Opacity = 0.65 });
 
         var body = new StackPanel { Spacing = 12, MinWidth = 340 };
-        body.Children.Add(new TextBlock { Text = "This removes the app and can't be undone from Updraft.", TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = "This removes the app and can't be undone from UpInstall.", TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new ScrollViewer { MaxHeight = 260, Content = list });
 
         var dlg = NewDialog();
@@ -1425,7 +1425,7 @@ public sealed partial class MainWindow : Window
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("$Host.UI.RawUI.WindowTitle = 'Updraft'");
+        sb.AppendLine("$Host.UI.RawUI.WindowTitle = 'UpInstall'");
         sb.AppendLine($"Write-Host 'Processing {pkgs.Count} package(s)...' -ForegroundColor Cyan");
         foreach (var p in pkgs)
         {
@@ -1448,7 +1448,7 @@ public sealed partial class MainWindow : Window
         else
         {
             // Very large selections: fall back to a unique file in a per-user folder.
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "runs");
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UpInstall", "runs");
             Directory.CreateDirectory(dir);
             foreach (var old in Directory.GetFiles(dir, "*.ps1").Where(f => File.GetLastWriteTimeUtc(f) < DateTime.UtcNow.AddDays(-1)))
             {

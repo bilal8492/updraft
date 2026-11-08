@@ -49,7 +49,7 @@ export const Intro = () => {
               }),
             }}
           >
-            Updraft
+            UpInstall
           </Headline>
         </div>
         <Subline

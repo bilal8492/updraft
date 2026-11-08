@@ -10,7 +10,7 @@ using Windows.Foundation;
 using Windows.UI;
 using Path = Microsoft.UI.Xaml.Shapes.Path;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>A small rounded badge. <see cref="Tone"/> picks one of the PillXxx styles in Styles.xaml.</summary>
 public sealed class Pill : Control
@@ -143,9 +143,9 @@ public sealed class PkgAvatar : Grid
     {
         switch (e.PropertyName)
         {
-            case nameof(Updraft.Pkg.State): Render(animate: true); break;
-            case nameof(Updraft.Pkg.Progress):
-            case nameof(Updraft.Pkg.Indeterminate): UpdateRing(); break;
+            case nameof(UpInstall.Pkg.State): Render(animate: true); break;
+            case nameof(UpInstall.Pkg.Progress):
+            case nameof(UpInstall.Pkg.Indeterminate): UpdateRing(); break;
         }
     }
 

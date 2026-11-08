@@ -15,12 +15,12 @@ import { Script } from "./scenes/Script";
 import { LiveProgress, Updates } from "./scenes/Updates";
 
 /**
- * Updraft promo, 1920×1080 at 30 fps (~47 s). Scenes sit in one TransitionSeries over a shared animated
+ * UpInstall promo, 1920×1080 at 30 fps (~47 s). Scenes sit in one TransitionSeries over a shared animated
  * background; each of the 9 transitions overlaps its neighbours by 18 frames. No audio yet.
  *
  * Total = 105 + 135 + 180 + 165 + 165 + 180 + 150 + 180 + 165 + 150 − 9 × 18 = 1413 frames.
  */
-export const UpdraftPromo = () => {
+export const UpInstallPromo = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#060A16" }}>
       <Background />

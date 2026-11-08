@@ -32,4 +32,4 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Build
-        run: dotnet build Updraft/Updraft.csproj -c Release -p:Platform=${{ matrix.platform }} -r ${{ matrix.rid }}
+        run: dotnet build UpInstall/UpInstall.csproj -c Release -p:Platform=${{ matrix.platform }} -r ${{ matrix.rid }}

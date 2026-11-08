@@ -12,7 +12,7 @@ const NAV: { key: Page; label: string; icon: IconName }[] = [
 ];
 
 /**
- * A Windows 11 style Updraft window (dark theme, Mica-like surface), drawn about 1.45× the real UI size so it
+ * A Windows 11 style UpInstall window (dark theme, Mica-like surface), drawn about 1.45× the real UI size so it
  * reads well in a 1080p video.
  */
 export const AppWindow: React.FC<{
@@ -44,7 +44,7 @@ export const AppWindow: React.FC<{
     {/* title bar */}
     <div style={{ height: 62, display: "flex", alignItems: "center", padding: "0 0 0 22px", flexShrink: 0 }}>
       <AppIcon size={26} />
-      <div style={{ marginLeft: 14, fontSize: 19, fontWeight: 500, color: C.textDim }}>Updraft</div>
+      <div style={{ marginLeft: 14, fontSize: 19, fontWeight: 500, color: C.textDim }}>UpInstall</div>
       <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
         <div
           style={{

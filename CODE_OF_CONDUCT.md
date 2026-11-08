@@ -1,6 +1,6 @@
 # Code of Conduct
 
-We want Updraft to be a friendly, harassment-free place for everyone, whatever their background or experience.
+We want UpInstall to be a friendly, harassment-free place for everyone, whatever their background or experience.
 
 **Expected:** be respectful and patient, give and accept constructive feedback gracefully, assume good intent,
 and focus on what is best for the project and its users.

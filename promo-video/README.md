@@ -1,6 +1,6 @@
-# Updraft promo video
+# UpInstall promo video
 
-A ~47 second, 1920×1080 / 30 fps explainer for Updraft, built with [Remotion](https://www.remotion.dev).
+A ~47 second, 1920×1080 / 30 fps explainer for UpInstall, built with [Remotion](https://www.remotion.dev).
 It has no audio track yet, so music or a voice-over can be added later.
 
 ## Commands
@@ -8,7 +8,7 @@ It has no audio track yet, so music or a voice-over can be added later.
 ```console
 npm i                 # install dependencies
 npm run dev           # open Remotion Studio to preview and tweak
-npm run render        # render out/updraft-promo.mp4 (full quality)
+npm run render        # render out/upinstall-promo.mp4 (full quality)
 npm run site-assets   # refresh the website media in ../docs/assets (run after render)
 ```
 
@@ -19,7 +19,7 @@ headlines.
 Render a few frames as PNGs to check a layout quickly:
 
 ```console
-npx remotion render UpdraftPromo out/frames --frames=70,300,810 --image-format=png
+npx remotion render UpInstallPromo out/frames --frames=70,300,810 --image-format=png
 ```
 
 ## Scenes
@@ -37,7 +37,7 @@ npx remotion render UpdraftPromo out/frames --frames=70,300,810 --image-format=p
 | 9 | Native | 165 | Fluent design, keyboard shortcuts, history, x64 + ARM64, privacy, open source |
 | 10 | Outro | 150 | Logo, website and repository |
 
-The scenes sit in one `TransitionSeries` (`src/UpdraftPromo.tsx`). Each of the 9 transitions overlaps by
+The scenes sit in one `TransitionSeries` (`src/UpInstallPromo.tsx`). Each of the 9 transitions overlaps by
 18 frames, so the total is 1575 − 162 = **1413 frames**. If you change a scene length, update
 `durationInFrames` in `src/Root.tsx` too.
 
@@ -46,8 +46,8 @@ The scenes sit in one `TransitionSeries` (`src/UpdraftPromo.tsx`). Each of the 9
 ```
 src/
   Root.tsx              composition registration (1920×1080, 30 fps)
-  UpdraftPromo.tsx      scene order and transitions
-  theme.ts              colours and fonts taken from Updraft/Styles.xaml
+  UpInstallPromo.tsx    scene order and transitions
+  theme.ts              colours and fonts taken from UpInstall/Styles.xaml
   data.ts               sample apps and starter packs (mirrors DemoData.cs / Catalog.cs)
   components/           app window, updates page, terminal, text, icons, cursor, background
   scenes/               one file per scene

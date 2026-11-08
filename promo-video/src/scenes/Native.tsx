@@ -17,7 +17,7 @@ const cell = (col: number, row: number, span = 1): React.CSSProperties => ({
   height: ROW,
 });
 
-/** Scene: a bento grid of what makes Updraft feel at home on Windows. */
+/** Scene: a bento grid of what makes UpInstall feel at home on Windows. */
 export const Native = () => {
   const frame = useCurrentFrame();
 
@@ -150,7 +150,7 @@ const BigIcon: React.FC<{ name: IconName; frame: number }> = ({ name, frame }) =
   </div>
 );
 
-/** A thumbnail of the Updraft window in light or dark theme; `t` lifts the one that's "on". */
+/** A thumbnail of the UpInstall window in light or dark theme; `t` lifts the one that's "on". */
 const MiniWindow: React.FC<{ dark: boolean; t: number }> = ({ dark, t }) => {
   const bg = dark ? "#1E2129" : "#F3F5F9";
   const fg = dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)";

@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 
-namespace Updraft;
+namespace UpInstall;
 
 public partial class App : Application
 {
@@ -14,6 +14,7 @@ public partial class App : Application
         // without touching the installed apps. Nothing is ever installed or removed in this mode.
         WingetService.Demo = Environment.GetCommandLineArgs().Skip(1)
             .Any(a => a.Equals("--demo", StringComparison.OrdinalIgnoreCase));
+        AppSettings.MigrateFromUpdraft();
 
         _window = new MainWindow();
         _window.Activate();

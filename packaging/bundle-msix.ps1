@@ -18,7 +18,7 @@ while ($nums.Count -lt 4) { $nums += 0 }
 $bundleVersion = ($nums[0..3]) -join '.'
 
 # makeappx bundles every .msix in the folder, so copy just the ones we want into a clean one.
-$stage = Join-Path ([IO.Path]::GetTempPath()) 'updraft-msixbundle'
+$stage = Join-Path ([IO.Path]::GetTempPath()) 'upinstall-msixbundle'
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory $stage | Out-Null
 $files = Get-ChildItem $InputDir -Filter *.msix

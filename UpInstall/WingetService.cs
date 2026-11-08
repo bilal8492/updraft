@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Updraft;
+namespace UpInstall;
 
 public static class WingetService
 {

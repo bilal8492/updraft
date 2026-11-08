@@ -13,7 +13,7 @@ const WIN = { x: 180, y: 330, w: 1560, h: 900 };
 const BUTTON = { x: 1562, y: 568 };
 const META = "2 major · 5 minor · 1 patch";
 
-/** Scene: Updraft scans and lists every update, then "Update all" is clicked. */
+/** Scene: UpInstall scans and lists every update, then "Update all" is clicked. */
 export const Updates = () => {
   const frame = useCurrentFrame();
 
@@ -156,7 +156,7 @@ export const LiveProgress = () => {
         </AppWindow>
       </div>
 
-      {/* Windows taskbar with Updraft's progress */}
+      {/* Windows taskbar with UpInstall's progress */}
       {showcase ? null : (
         <div
           style={{

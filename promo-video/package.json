@@ -1,7 +1,7 @@
 {
   "name": "promo-video",
   "version": "1.0.0",
-  "description": "Promo video for Updraft, made with Remotion",
+  "description": "Promo video for UpInstall, made with Remotion",
   "repository": {},
   "license": "UNLICENSED",
   "engines": {
@@ -28,7 +28,7 @@
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
-    "render": "remotion render UpdraftPromo out/updraft-promo.mp4 --codec=h264 --crf=16",
+    "render": "remotion render UpInstallPromo out/upinstall-promo.mp4 --codec=h264 --crf=16",
     "site-assets": "node scripts/site-assets.mjs"
   },
   "allowScripts": {

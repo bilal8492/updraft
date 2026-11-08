@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>
 /// Shows install progress on the app's taskbar button and flashes it when a run ends in the background.

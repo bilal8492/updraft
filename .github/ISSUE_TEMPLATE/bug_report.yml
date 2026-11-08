@@ -16,7 +16,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Updraft version
+      label: UpInstall version
       placeholder: "0.1.0"
   - type: dropdown
     id: arch

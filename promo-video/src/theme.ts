@@ -1,4 +1,4 @@
-// Colours and type taken from the Updraft app (Updraft/Styles.xaml, dark theme) so the video matches the product.
+// Colours and type taken from the UpInstall app (UpInstall/Styles.xaml, dark theme) so the video matches the product.
 
 export const FONT =
   '"Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';

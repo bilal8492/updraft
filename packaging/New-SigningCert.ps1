@@ -3,7 +3,7 @@
   Creates the self-signed certificate used to sign the sideload .msix, once.
 
 .DESCRIPTION
-  Writes Updraft-signing.pfx (private key: keep secret) and Updraft-signing.cer (public: users trust this).
+  Writes UpInstall-signing.pfx (private key: keep secret) and UpInstall-signing.cer (public: users trust this).
   Add the PFX to the GitHub repo as secrets so CI signs every release with the SAME certificate:
     MSIX_PFX_BASE64     = the base64 text this script prints
     MSIX_PFX_PASSWORD   = the password you entered
@@ -20,13 +20,13 @@ $ErrorActionPreference = 'Stop'
 $password = Read-Host 'Choose a password for the PFX' -AsSecureString
 
 $cert = New-SelfSignedCertificate -Type Custom -Subject $Subject -KeyUsage DigitalSignature `
-    -FriendlyName 'Updraft sideload signing' -CertStoreLocation 'Cert:\CurrentUser\My' `
+    -FriendlyName 'UpInstall sideload signing' -CertStoreLocation 'Cert:\CurrentUser\My' `
     -NotAfter (Get-Date).AddYears($Years) `
     -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')   # code signing, not a CA
 
 try {
-    $pfx = Join-Path $OutDir 'Updraft-signing.pfx'
-    $cer = Join-Path $OutDir 'Updraft-signing.cer'
+    $pfx = Join-Path $OutDir 'UpInstall-signing.pfx'
+    $cer = Join-Path $OutDir 'UpInstall-signing.cer'
     Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $password | Out-Null
     Export-Certificate -Cert $cert -FilePath $cer | Out-Null
 }

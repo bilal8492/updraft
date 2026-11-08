@@ -72,7 +72,7 @@ export const Icon: React.FC<{
 );
 
 // ---------------------------------------------------------------------------------------------
-// Small building blocks of the Updraft UI.
+// Small building blocks of the UpInstall UI.
 // ---------------------------------------------------------------------------------------------
 
 // Same rules as Pkg.MakeInitials in the app.
@@ -268,7 +268,7 @@ export const AppIcon: React.FC<{ size: number; style?: React.CSSProperties }> = 
   <Img src={staticFile("icon.png")} style={{ width: size, height: size, flexShrink: 0, ...style }} />
 );
 
-/** The Updraft mark drawn as SVG so each chevron can rise on its own. `rise` holds 0 → 1 per chevron (top first). */
+/** The UpInstall mark drawn as SVG so each chevron can rise on its own. `rise` holds 0 → 1 per chevron (top first). */
 export const LogoMark: React.FC<{ size: number; rise?: readonly number[]; style?: React.CSSProperties }> = ({
   size,
   rise = [1, 1, 1],

@@ -1,4 +1,4 @@
-namespace Updraft;
+namespace UpInstall;
 
 public enum UpdateKind { None, Patch, Minor, Major }
 

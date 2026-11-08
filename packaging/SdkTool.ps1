@@ -15,7 +15,7 @@ function Find-SdkTool([string]$Name) {
             Sort-Object FullName -Descending | Select-Object -First 1
         if ($hit) { return $hit.FullName }
     }
-    throw "Could not find $Name. Run 'dotnet restore Updraft/Updraft.csproj' first, or install the Windows SDK."
+    throw "Could not find $Name. Run 'dotnet restore UpInstall/UpInstall.csproj' first, or install the Windows SDK."
 }
 
 function Invoke-Tool([string]$Exe, [string[]]$Arguments) {

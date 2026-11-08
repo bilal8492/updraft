@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>One skipped app or version, as listed in Settings.</summary>
 public sealed class SkipEntry
@@ -40,7 +40,7 @@ public sealed partial class MainWindow
         AnimSwitch.IsOn = s.Animations;
         AnimHint.Text = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled
             ? "Motion when lists load, apps install and panels open."
-            : "Windows' Animation effects setting is off, so Updraft stays still either way.";
+            : "Windows' Animation effects setting is off, so UpInstall stays still either way.";
         UpdateThemeCards();
         RefreshSkippedList();
         _loadingSettings = false;
