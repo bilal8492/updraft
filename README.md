@@ -35,21 +35,43 @@ Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native f
 
 ## Features
 
-- **Scans for updates on launch** and lists every app that has a newer version (installed → available).
-- **Pick what you want.** Tick individual apps or *Select all*; filter the list as you type.
-- **Generates the script for you.** Copy the exact `winget` commands and paste them into any terminal…
-- **…or run them in one click.** Updraft opens Windows Terminal (or PowerShell) and installs the selection.
-- **Optional "Run as administrator"** for apps that need elevation.
-- **Installed** view to browse everything on the machine, and **Discover** to search the whole winget catalogue.
-- **Detail pane** with description, publisher, licence and homepage (from `winget show`).
+**Updates**
+
+- **Scans for updates on launch** and shows how many there are, with a major / minor / patch breakdown.
+- **Update all in one click**, or tick the apps you want. Filter as you type, by source, or sort by update type.
+- **Live progress inside the app:** each app shows a progress ring and its result, and the taskbar button shows
+  progress for the whole run (it flashes if the run finishes while Updraft is in the background).
+- **Skip just one version** of an update (it comes back when a newer one ships), skip an app for good, or **pin** it
+  with `winget pin`. Skips can be undone right away and managed in Settings.
+- **Choose a version:** install or update to a specific release instead of the newest one.
+
+**Apps**
+
+- **Detail pane** with release notes ("What's new"), description, publisher, licence, homepage, installer type and
+  tags (from `winget show`), plus the exact `winget` command.
+- **Right-click any row** (or hover it) for quick actions: install / update / uninstall now, skip, pin, choose a
+  version, copy the id or command, open the homepage.
+- **Installed** view to browse and uninstall everything on the machine.
+- **Discover** to search the whole winget catalogue, with one-click popular searches.
+- **Starter packs** for setting up a new PC: Essentials, Developer, Creative, Chat & meetings, Gaming and
+  Privacy & security. Apps you already have are left alone.
 - **Backup & restore.** Export your installed apps to a JSON file, then restore them on a new PC: Updraft shows which
   are already installed and ticks the rest. Uses winget's own export format.
-- **Skip just one version** of an update (it comes back when a newer one ships), or skip an app for good.
-- **History** of every install, update and uninstall run inside Updraft, with results. Stored locally only.
+
+**Running**
+
+- **Generates the script for you.** Copy the exact `winget` commands and paste them into any terminal…
+- **…or run them in a terminal.** Updraft opens Windows Terminal (or PowerShell) with the selection.
+- **Optional "Run as administrator"** for apps that need elevation.
+- **History** of every install, update and uninstall run inside Updraft, grouped by day. Stored locally only.
+
+**The app**
+
+- **Native WinUI 3** with a Windows 11 look: Mica backdrop, light, dark or system theme, and motion that follows the
+  Windows "Animation effects" setting (or can be turned off in Settings).
 - **Keyboard shortcuts:** `Ctrl+1`–`4` switch pages, `F5` rescans, `Ctrl+F` searches, `Ctrl+A` selects all,
-  `Ctrl+Enter` starts, `Esc` cancels.
+  `Ctrl+Enter` starts, `Esc` cancels, `Ctrl+,` opens Settings, `F1` lists them all.
 - Remembers its window size and position, and explains how to get winget if it isn't installed.
-- **Native WinUI 3** app: Windows 11 look, Mica backdrop, automatic light/dark theme.
 - Runs on **Windows 10 (1809+) and Windows 11**, on **x64 and ARM64**.
 - No telemetry, no accounts, no network calls of its own. It only talks to `winget`.
 
@@ -88,6 +110,13 @@ cd updraft
 .\Start-Updraft.cmd  # runs it
 ```
 
+Run it with `--demo` to try the UI with sample data and simulated installs. Nothing is installed or removed, winget
+isn't called, and demo mode keeps its own settings and history (in `%LOCALAPPDATA%\Updraft\demo`):
+
+```powershell
+.\Updraft\bin\x64\Release\net9.0-windows10.0.19041.0\win-x64\Updraft.exe --demo
+```
+
 Build for ARM64 or publish a self-contained folder:
 
 ```powershell
@@ -97,15 +126,22 @@ dotnet publish Updraft/Updraft.csproj -c Release -p:Platform=ARM64 -r win-arm64 
 ## How it works
 
 Updraft shells out to `winget` (`upgrade`, `list`, `search`, `show`) and parses the fixed-width table output. Column
-positions come from the header line, so it works regardless of the Windows display language. When you run a selection,
-it writes a small PowerShell script to `%LOCALAPPDATA%\Updraft\runs\` and opens it in a terminal. Package ids are
-validated against a strict pattern before they ever reach that script.
+positions come from the header line, so it works regardless of the Windows display language. Installs run inside the
+app with winget's output captured per package; "Run in terminal" and admin runs pass a generated PowerShell script to
+Windows Terminal or PowerShell instead. Package ids and chosen versions are validated against a strict pattern before
+they ever reach a command line.
 
 ```
 Updraft/
-  MainWindow.xaml(.cs)   UI and interaction
+  MainWindow.xaml(.cs)   layout, loading, filtering, detail pane and the in-app runner
+  MainWindow.Chrome.cs   status, toasts, hero card, empty states, context menus
+  MainWindow.Pages.cs    Settings, Discover start page, version picker, shortcuts
   WingetService.cs       winget process + output parser
-  Pkg.cs                 data models
+  Pkg.cs, History.cs     data models, local history and backup files
+  Catalog.cs             starter packs and popular searches
+  Motion.cs, Controls.cs animations and small custom controls
+  Styles.xaml            colours, typography and shared styles
+  DemoData.cs            sample data for --demo
 installer/updraft.iss    Inno Setup script for the setup .exe
 docs/                    the project website (GitHub Pages)
 .github/workflows/       CI, release and Pages pipelines
@@ -113,8 +149,8 @@ docs/                    the project website (GitHub Pages)
 
 ## Roadmap
 
-- [ ] Update everything / ignore (pin) a package
-- [ ] Live progress inside the app
+- [x] Update everything / ignore (pin) a package
+- [x] Live progress inside the app
 - [ ] Winget package manifest (`winget install Updraft`)
 - [ ] Code-signed releases
 - [ ] Tray icon with update notifications
