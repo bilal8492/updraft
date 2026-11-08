@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.1.0 to build both architectures and publish a GitHub release.
+# Push a tag like v0.1.0 to build both architectures, publish a GitHub release and submit to the Microsoft Store.
 on:
   push:
     tags: ["v*"]
@@ -97,6 +97,25 @@ jobs:
           path: msix/*.msix
           if-no-files-found: error
 
+      # Unsigned per-architecture .msix with the Microsoft Store identity. Microsoft re-signs it for free on
+      # certification, so no certificate is involved. Always built; submitted by the "store" job.
+      - name: Build Store MSIX (unsigned)
+        shell: pwsh
+        run: |
+          $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')
+          $arch = '${{ matrix.rid }}'.Replace('win-', '')
+          ./packaging/build-msix.ps1 -PublishDir "publish/${{ matrix.rid }}" -Arch $arch -Version $version `
+            -OutFile "store/UpInstall-${{ matrix.rid }}.msix" `
+            -IdentityName '${{ vars.STORE_IDENTITY_NAME || 'BilalAnsari.UpInstall' }}' `
+            -Publisher '${{ vars.STORE_PUBLISHER || 'CN=1C7A51E9-3ED2-476B-B6C8-5086736F112C' }}' `
+            -PublisherDisplayName '${{ vars.STORE_PUBLISHER_DISPLAY_NAME || 'Bilal Ansari' }}'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: store-${{ matrix.rid }}
+          path: store/*.msix
+          if-no-files-found: error
+
   bundle:
     name: Bundle MSIX
     needs: build
@@ -146,6 +165,68 @@ jobs:
           name: msix-bundle
           path: msix-out/*
           if-no-files-found: error
+
+  # Bundles the unsigned Store packages and submits them to the Microsoft Store through the Store Developer CLI.
+  # Needs the Partner Center secrets listed in packaging/README.md; without them the bundle is only uploaded as an
+  # artifact. Pre-release tags (v1.2.3-beta1) are never submitted.
+  store:
+    name: Microsoft Store
+    needs: build
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      STORE_PRODUCT_ID: ${{ vars.STORE_PRODUCT_ID || '9PMB0883K391' }}
+      PC_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: store-*
+          path: store-in
+          merge-multiple: true
+
+      - name: Create Store bundle
+        shell: pwsh
+        run: |
+          dotnet restore UpInstall/UpInstall.csproj   # brings in makeappx (Windows SDK build tools)
+          $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')
+          New-Item -ItemType Directory store-out | Out-Null
+          ./packaging/bundle-msix.ps1 -InputDir store-in -Version $version -OutFile store-out/UpInstall.msixbundle
+          # .msixupload is a zip holding the bundle; it is the format the Store CLI/API expects.
+          Compress-Archive store-out/UpInstall.msixbundle store-out/UpInstall.zip
+          Rename-Item store-out/UpInstall.zip UpInstall.msixupload
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: store-bundle
+          path: store-out/*
+          if-no-files-found: error
+
+      - name: Set up Microsoft Store Developer CLI
+        if: env.PC_TENANT_ID != '' && !contains(env.TAG, '-')
+        uses: microsoft/setup-msstore-cli@v1
+
+      - name: Submit to Microsoft Store
+        if: env.PC_TENANT_ID != '' && !contains(env.TAG, '-')
+        shell: pwsh
+        env:
+          PC_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
+          PC_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          PC_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+        run: |
+          msstore reconfigure --tenantId $env:PC_TENANT_ID --sellerId $env:PC_SELLER_ID `
+            --clientId $env:PC_CLIENT_ID --clientSecret $env:PC_CLIENT_SECRET
+          if ($LASTEXITCODE -ne 0) { throw "msstore reconfigure failed" }
+          # Replaces the pending draft with this package and commits it for certification.
+          msstore publish store-out -i store-out/UpInstall.msixupload -id $env:STORE_PRODUCT_ID
+          if ($LASTEXITCODE -ne 0) { throw "msstore publish failed" }
 
   release:
     name: Create release
