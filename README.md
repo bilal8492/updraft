@@ -144,6 +144,7 @@ Updraft/
   DemoData.cs            sample data for --demo
 installer/updraft.iss    Inno Setup script for the setup .exe
 docs/                    the project website (GitHub Pages)
+promo-video/             the promo video, made with Remotion (see its README)
 .github/workflows/       CI, release and Pages pipelines
 ```
 
