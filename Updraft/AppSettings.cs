@@ -16,6 +16,8 @@ public sealed class AppSettings
     public string Terminal { get; set; } = "auto";
     /// <summary>"system", "light" or "dark".</summary>
     public string Theme { get; set; } = "system";
+    /// <summary>Motion and transitions. Windows' own "Animation effects" setting can still turn them off.</summary>
+    public bool Animations { get; set; } = true;
 
     /// <summary>Package ids the user chose to skip in the Upgrades list.</summary>
     public List<string> Skipped { get; set; } = new();
@@ -68,10 +70,19 @@ public sealed class AppSettings
     /// <summary>A detached copy, for editing in a dialog without touching <see cref="Current"/> until saved.</summary>
     public AppSettings Clone() => JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(this)) is { } c ? Sanitize(c) : new();
 
-    public static AppSettings Current { get; private set; } = Load();
+    private static AppSettings? _current;
+    public static AppSettings Current
+    {
+        get => _current ??= Load();
+        private set => _current = value;
+    }
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "settings.json");
+    /// <summary>Where settings and history live. Demo mode keeps its own copy so it never touches real data.</summary>
+    public static string DataDir => WingetService.Demo
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "demo")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft");
+
+    private static string FilePath => Path.Combine(DataDir, "settings.json");
 
     private static AppSettings Load()
     {

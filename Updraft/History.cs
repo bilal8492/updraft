@@ -39,12 +39,41 @@ public sealed class HistoryEntry
 
     public string ResultText => Result == "Failed" && ExitCode != 0 ? $"Failed (0x{ExitCode:X8})" : Result;
 
-    public Brush ResultBrush => Result switch
+    public string ResultTone => Result switch { "Succeeded" => "Success", "Failed" => "Danger", _ => "Warning" };
+
+    public string TimeText => When.ToLocalTime().ToString("t");
+
+    public string VersionText => (FromVersion, ToVersion) switch
     {
-        "Succeeded" => new SolidColorBrush(ColorHelper.FromArgb(255, 34, 197, 94)),
-        "Failed" => new SolidColorBrush(ColorHelper.FromArgb(255, 239, 68, 68)),
-        _ => new SolidColorBrush(ColorHelper.FromArgb(255, 245, 158, 11)),
+        ({ Length: > 0 } f, { Length: > 0 } t) when f != t => $"{f}  →  {t}",
+        ({ Length: > 0 } f, _) => f,
+        (_, { Length: > 0 } t) => t,
+        _ => "",
     };
+
+    public string ActionGlyph => Action switch { "Update" => "", "Uninstall" => "", _ => "" };
+    public string Initials => Pkg.MakeInitials(Name);
+    public Brush AvatarBrush => Avatars.For(Id, Name);
+
+    public override string ToString() => $"{Action} {Name}: {ResultText}";
+}
+
+/// <summary>History entries from one day, with a friendly heading ("Today", "Yesterday", "Monday, 3 November").</summary>
+public sealed class HistoryGroup : List<HistoryEntry>
+{
+    public HistoryGroup(DateTime day, IEnumerable<HistoryEntry> items) : base(items)
+    {
+        var today = DateTime.Today;
+        Title = day == today ? "Today"
+            : day == today.AddDays(-1) ? "Yesterday"
+            : day > today.AddDays(-7) ? day.ToString("dddd")
+            : day.ToString("D");
+        int ok = this.Count(e => e.Result == "Succeeded"), failed = this.Count(e => e.Result == "Failed");
+        Summary = failed > 0 ? $"{ok} succeeded  ·  {failed} failed" : $"{Count} {(Count == 1 ? "change" : "changes")}";
+    }
+
+    public string Title { get; }
+    public string Summary { get; }
 }
 
 /// <summary>
@@ -55,8 +84,7 @@ public static class HistoryStore
 {
     private const int MaxEntries = 500;
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "history.json");
+    private static string FilePath => Path.Combine(AppSettings.DataDir, "history.json");
 
     private static List<HistoryEntry>? _cache;
 

@@ -6,7 +6,17 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <ResourceDictionary Source="Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Brand accent (from the app icon) for buttons, checkboxes, progress and the nav indicator. -->
+            <Color x:Key="SystemAccentColor">#3B82ED</Color>
+            <Color x:Key="SystemAccentColorLight1">#5C9AF2</Color>
+            <Color x:Key="SystemAccentColorLight2">#8AB8F7</Color>
+            <Color x:Key="SystemAccentColorLight3">#B8D4FB</Color>
+            <Color x:Key="SystemAccentColorDark1">#2A6BD6</Color>
+            <Color x:Key="SystemAccentColorDark2">#1F55B3</Color>
+            <Color x:Key="SystemAccentColorDark3">#163F87</Color>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
