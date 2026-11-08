@@ -54,24 +54,51 @@ Remove it later in `certlm.msc` under Trusted People.
 
 ## Microsoft Store
 
-Microsoft re-signs MSIX packages submitted to the Store for free, so you upload an **unsigned** package built with
-your Partner Center identity:
+Code signing is free for the Store: Microsoft re-signs MSIX packages after certification (see
+[Code signing options](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)), so the
+Store package is deliberately **unsigned** and built with the Partner Center identity:
 
-1. In Partner Center, reserve the name and open **Product identity**. Note the *Package/Identity/Name*,
-   *Package/Identity/Publisher* (looks like `CN=GUID`) and *PublisherDisplayName*.
-2. Build both architectures with those values, then bundle:
+| Field | Value |
+| --- | --- |
+| Package/Identity/Name | `BilalAnsari.UpInstall` |
+| Package/Identity/Publisher | `CN=1C7A51E9-3ED2-476B-B6C8-5086736F112C` |
+| PublisherDisplayName | `Bilal Ansari` |
+| Store ID | `9PMB0883K391` |
 
-   ```powershell
-   ./packaging/build-msix.ps1 -PublishDir publish/win-x64   -Arch x64   -Version 0.2.0 -OutFile store/UpInstall-win-x64.msix   -IdentityName '<Name>' -Publisher '<Publisher>' -PublisherDisplayName '<Display>'
-   ./packaging/build-msix.ps1 -PublishDir publish/win-arm64 -Arch arm64 -Version 0.2.0 -OutFile store/UpInstall-win-arm64.msix -IdentityName '<Name>' -Publisher '<Publisher>' -PublisherDisplayName '<Display>'
-   ./packaging/bundle-msix.ps1 -InputDir store -Version 0.2.0 -OutFile UpInstall.msixbundle
-   ```
+(These differ from the sideload package, which keeps the old `BilalAnsari.Updraft` identity.)
 
-3. Upload `UpInstall.msixbundle` in the submission's Packages step.
+### First submission (manual, once)
+
+The Store API can only update an app that already has a published submission, so do the first one in Partner Center:
+build the bundle (workflow artifact `store-bundle`, or locally as below), upload `UpInstall.msixbundle` under
+**Packages**, fill in Properties, Age ratings, Pricing and availability and the Store listing, then submit.
+A privacy policy URL is required; the website can host one (UpInstall collects nothing).
+
+```powershell
+./packaging/build-msix.ps1 -PublishDir publish/win-x64   -Arch x64   -Version 0.2.0 -OutFile store/UpInstall-win-x64.msix   -IdentityName 'BilalAnsari.UpInstall' -Publisher 'CN=1C7A51E9-3ED2-476B-B6C8-5086736F112C' -PublisherDisplayName 'Bilal Ansari'
+./packaging/build-msix.ps1 -PublishDir publish/win-arm64 -Arch arm64 -Version 0.2.0 -OutFile store/UpInstall-win-arm64.msix -IdentityName 'BilalAnsari.UpInstall' -Publisher 'CN=1C7A51E9-3ED2-476B-B6C8-5086736F112C' -PublisherDisplayName 'Bilal Ansari'
+./packaging/bundle-msix.ps1 -InputDir store -Version 0.2.0 -OutFile UpInstall.msixbundle
+```
+
+### Automatic submissions from releases
+
+The `store` job in `.github/workflows/release.yml` bundles the unsigned packages and, when the secrets below exist,
+submits them with the [Store Developer CLI](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/ci-cd-environments)
+(`msstore publish`). Pre-release tags (containing `-`) are never submitted. Without the secrets the bundle is only
+kept as the `store-bundle` artifact.
+
+One-time setup:
+
+1. Partner Center > **Account settings** > **Tenant administration** > **Microsoft Entra applications**: add (or
+   create) an application, give it the **Manager** role, and create a client secret.
+2. In the GitHub repo add these Actions secrets: `PARTNER_CENTER_TENANT_ID`, `PARTNER_CENTER_SELLER_ID`,
+   `PARTNER_CENTER_CLIENT_ID`, `PARTNER_CENTER_CLIENT_SECRET`.
+3. Optional repository variables (defaults are the values above): `STORE_PRODUCT_ID`, `STORE_IDENTITY_NAME`,
+   `STORE_PUBLISHER`, `STORE_PUBLISHER_DISPLAY_NAME`.
 
 Store notes: the app uses the `runFullTrust` capability (it launches winget, PowerShell and Windows Terminal), which is
-normal for desktop apps. Each submission needs a higher version than the last. A privacy policy URL is required;
-the website can host one (UpInstall collects nothing).
+normal for desktop apps. Each submission needs a higher version than the last, and the Store reserves the fourth part
+of the version, which is why releases map `1.2.3` to `1.2.3.0`.
 
 ## Behaviour differences inside MSIX
 

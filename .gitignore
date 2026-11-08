@@ -41,3 +41,6 @@ packages/
 *.p12
 *.msix
 *.msixbundle
+
+# Locally built Store bundle
+store-submit/
