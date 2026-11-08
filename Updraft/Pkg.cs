@@ -16,17 +16,74 @@ public sealed class Pkg : INotifyPropertyChanged
     public string Available { get; set; } = "";
     public string Source { get; set; } = "";
 
-    // Badge: always visible when winget reported a source, with a distinct colour per source.
+    /// <summary>The list this row belongs to: "upgrade", "installed", "discover" or "import".</summary>
+    public string Mode { get; set; } = "";
+
+    // ---------- look ----------
+
+    private string? _initials;
+    public string Initials => _initials ??= MakeInitials(Name);
+    public Brush AvatarBrush => Avatars.For(Id, Name);
+
+    // Badge: visible when winget reported a source, with a distinct tone per source.
     public Visibility SourceVisibility => string.IsNullOrEmpty(Source) ? Visibility.Collapsed : Visibility.Visible;
     public string SourceLabel => Source;
-    public Brush SourceBrush => Source.ToLowerInvariant() switch
-    {
-        "winget" => new SolidColorBrush(ColorHelper.FromArgb(255, 76, 194, 255)),   // blue
-        "msstore" => new SolidColorBrush(ColorHelper.FromArgb(255, 108, 203, 95)),  // green
-        _ => new SolidColorBrush(ColorHelper.FromArgb(255, 157, 157, 157)),         // grey
-    };
+    public string SourceTone => Source.ToLowerInvariant() switch { "winget" => "Accent", "msstore" => "Violet", _ => "Neutral" };
 
     public string VersionText => string.IsNullOrEmpty(Available) ? Version : $"{Version}  →  {Available}";
+
+    /// <summary>The version this row will end up on: a chosen version, else the newest one winget offers.</summary>
+    public string TargetText => TargetVersion.Length > 0 ? TargetVersion : Available.Length > 0 ? Available : Version;
+    public Visibility UpdateArrowVisibility => Available.Length > 0 || TargetVersion.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility PlainVersionVisibility => UpdateArrowVisibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+
+    private UpdateKind? _kind;
+    /// <summary>Major, minor or patch: which part of the version number the update changes.</summary>
+    public UpdateKind Kind => _kind ??= Mode == "upgrade" ? Versions.Classify(Version, Available) : UpdateKind.None;
+    public string KindLabel => Kind switch { UpdateKind.Major => "Major", UpdateKind.Minor => "Minor", UpdateKind.Patch => "Patch", _ => "" };
+    public string KindTone => Kind switch { UpdateKind.Major => "Warning", UpdateKind.Minor => "Accent", _ => "Neutral" };
+    public Visibility KindVisibility => Kind == UpdateKind.None ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>winget can only act on rows with a real package id (not "ARP\…" or "MSIX\…" entries).</summary>
+    public bool IsManageable => WingetService.IsSafeId(Id);
+
+    public string ActionLabel => Mode switch { "upgrade" => "Update", "installed" => "Uninstall", _ => "Install" };
+    public string ActionGlyph => Mode switch { "upgrade" => "", "installed" => "", _ => "" };
+    public Visibility QuickActionVisibility => IsManageable && !(Mode == "import" && IsInstalled) ? Visibility.Visible : Visibility.Collapsed;
+
+    // ---------- chosen version ----------
+
+    private string _targetVersion = "";
+    /// <summary>A specific version picked by the user (empty means the latest).</summary>
+    public string TargetVersion
+    {
+        get => _targetVersion;
+        set
+        {
+            if (_targetVersion == value) return;
+            _targetVersion = value;
+            Notify(nameof(TargetVersion), nameof(TargetText), nameof(UpdateArrowVisibility), nameof(PlainVersionVisibility), nameof(VersionText));
+        }
+    }
+
+    /// <summary>Two letters for the app's tile: "Visual Studio Code" → "VS", "PowerToys" → "PT", "7-Zip" → "7Z".</summary>
+    public static string MakeInitials(string name)
+    {
+        var words = System.Text.RegularExpressions.Regex.Split(name, @"[\s\-_.()\[\]/,:+]+")
+            .Where(w => w.Length > 0 && char.IsLetterOrDigit(w[0])).ToList();
+        if (words.Count == 0) return "?";
+        // A leading vendor name says little about the app itself ("Microsoft Teams" → "T").
+        string[] vendors = { "microsoft", "mozilla", "google", "adobe", "the", "apple", "amazon" };
+        if (words.Count > 1 && vendors.Contains(words[0].ToLowerInvariant())) words.RemoveAt(0);
+
+        var first = words[0];
+        if (words.Count > 1 && (char.IsUpper(words[1][0]) || char.IsDigit(words[1][0])))
+            return $"{char.ToUpperInvariant(first[0])}{char.ToUpperInvariant(words[1][0])}";
+        var inner = first.Skip(1).FirstOrDefault(char.IsUpper);   // camel case: PowerToys, GitHub
+        if (inner != default && !first.All(c => !char.IsLetter(c) || char.IsUpper(c)))
+            return $"{char.ToUpperInvariant(first[0])}{inner}";
+        return char.ToUpperInvariant(first[0]).ToString();
+    }
 
     private bool _selected;
     public bool IsSelected
@@ -49,7 +106,7 @@ public sealed class Pkg : INotifyPropertyChanged
     public bool IsInstalled
     {
         get => _isInstalled;
-        set { if (_isInstalled == value) return; _isInstalled = value; Notify(nameof(IsInstalled), nameof(InstalledVisibility)); }
+        set { if (_isInstalled == value) return; _isInstalled = value; Notify(nameof(IsInstalled), nameof(InstalledVisibility), nameof(QuickActionVisibility)); }
     }
 
     public Visibility InstalledVisibility => _isInstalled ? Visibility.Visible : Visibility.Collapsed;
@@ -91,12 +148,14 @@ public sealed class Pkg : INotifyPropertyChanged
 
     public Visibility StatusVisibility => State == RunState.None ? Visibility.Collapsed : Visibility.Visible;
     public Visibility ProgressVisibility => State == RunState.Running ? Visibility.Visible : Visibility.Collapsed;
-    public Brush StatusBrush => State switch
+    /// <summary>The row's status line uses the pill tones so it matches the badges in both themes.</summary>
+    public string StatusTone => State switch
     {
-        RunState.Succeeded => new SolidColorBrush(ColorHelper.FromArgb(255, 34, 197, 94)),
-        RunState.Failed => new SolidColorBrush(ColorHelper.FromArgb(255, 239, 68, 68)),
-        RunState.Cancelled => new SolidColorBrush(ColorHelper.FromArgb(255, 245, 158, 11)),
-        _ => new SolidColorBrush(ColorHelper.FromArgb(255, 157, 157, 157)),
+        RunState.Succeeded => "Success",
+        RunState.Failed => "Danger",
+        RunState.Cancelled => "Warning",
+        RunState.Running => "Accent",
+        _ => "Neutral",
     };
 
     public void ResetRun()
@@ -112,7 +171,7 @@ public sealed class Pkg : INotifyPropertyChanged
     {
         State = state;
         RunStatus = text;
-        Notify(nameof(State), nameof(RunStatus), nameof(StatusVisibility), nameof(ProgressVisibility), nameof(StatusBrush));
+        Notify(nameof(State), nameof(RunStatus), nameof(StatusVisibility), nameof(ProgressVisibility), nameof(StatusTone));
     }
 
     public void SetStatusText(string text)
@@ -141,6 +200,75 @@ public sealed class Pkg : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>What screen readers announce for the row.</summary>
+    public override string ToString() => Name;
 }
 
-public sealed record PkgDetail(string Description, string Publisher, string License, string Homepage);
+/// <summary>What <c>winget show</c> tells us about a package. Any field can be empty.</summary>
+public sealed class PkgDetail
+{
+    public string Version { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string Publisher { get; init; } = "";
+    public string PublisherUrl { get; init; } = "";
+    public string Author { get; init; } = "";
+    public string License { get; init; } = "";
+    public string LicenseUrl { get; init; } = "";
+    public string Homepage { get; init; } = "";
+    public string ReleaseNotes { get; init; } = "";
+    public string ReleaseNotesUrl { get; init; } = "";
+    public string ReleaseDate { get; init; } = "";
+    public string InstallerType { get; init; } = "";
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
+    public static readonly PkgDetail Empty = new();
+}
+
+/// <summary>Deterministic gradient tiles: the same app always gets the same colour (by publisher, from the id).</summary>
+public static class Avatars
+{
+    private static readonly (string From, string To)[] Colors =
+    {
+        ("#4F46E5", "#2F7BE6"), // indigo → blue
+        ("#0284C7", "#0891B2"), // sky → cyan
+        ("#0D9488", "#059669"), // teal → emerald
+        ("#7C3AED", "#C026D3"), // violet → fuchsia
+        ("#E11D48", "#EA580C"), // rose → orange
+        ("#D97706", "#DC2626"), // amber → red
+        ("#4D7C0F", "#15803D"), // lime → green
+        ("#475569", "#1E293B"), // slate
+        ("#DB2777", "#9333EA"), // pink → purple
+        ("#2563EB", "#7C3AED"), // blue → violet
+    };
+
+    private static readonly Brush?[] Cache = new Brush?[Colors.Length];
+
+    public static int Count => Colors.Length;
+
+    public static Brush Palette(int index)
+    {
+        index = ((index % Colors.Length) + Colors.Length) % Colors.Length;
+        return Cache[index] ??= Make(Colors[index].From, Colors[index].To);
+    }
+
+    public static Brush For(string id, string name)
+    {
+        // "Publisher.App" ids: colour by publisher so an app family shares a hue; otherwise by name.
+        var key = WingetService.IsSafeId(id) && id.Contains('.') ? id[..id.IndexOf('.')] : name;
+        uint h = 2166136261;
+        foreach (var c in key.ToLowerInvariant()) { h ^= c; h *= 16777619; }
+        return Palette((int)(h % (uint)Colors.Length));
+    }
+
+    private static Brush Make(string from, string to)
+    {
+        var b = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0, 0), EndPoint = new Windows.Foundation.Point(1, 1) };
+        b.GradientStops.Add(new GradientStop { Color = Parse(from), Offset = 0 });
+        b.GradientStops.Add(new GradientStop { Color = Parse(to), Offset = 1 });
+        return b;
+    }
+
+    private static Windows.UI.Color Parse(string hex) => ColorHelper.FromArgb(255,
+        Convert.ToByte(hex.Substring(1, 2), 16), Convert.ToByte(hex.Substring(3, 2), 16), Convert.ToByte(hex.Substring(5, 2), 16));
+}

@@ -6,8 +6,12 @@ namespace Updraft;
 
 public static class WingetService
 {
+    /// <summary>Sample data and simulated runs instead of real winget calls (started with --demo).</summary>
+    public static bool Demo { get; set; }
+
     public static async Task<string> RunAsync(params string[] args)
     {
+        if (Demo) return await DemoData.RunAsync(args);
         var psi = new ProcessStartInfo("winget")
         {
             RedirectStandardOutput = true,
@@ -44,6 +48,7 @@ public static class WingetService
     /// <summary>Runs winget to completion and returns its exit code plus stdout and stderr combined.</summary>
     public static async Task<(int Code, string Output)> RunCaptureAsync(params string[] args)
     {
+        if (Demo) return await DemoData.RunCaptureAsync(args);
         var psi = new ProcessStartInfo("winget")
         {
             RedirectStandardOutput = true,
@@ -82,6 +87,11 @@ public static class WingetService
         var v = Verb(mode);
         var s = AppSettings.Current;
         var args = new List<string> { v, "--id", p.Id, "-e" };
+        if (v != "uninstall" && p.TargetVersion.Length > 0 && Versions.IsSafe(p.TargetVersion))
+        {
+            args.Add("--version");
+            args.Add(p.TargetVersion);
+        }
         if (v != "uninstall" && s.AcceptAgreements)
         {
             args.Add("--accept-package-agreements");
@@ -105,6 +115,7 @@ public static class WingetService
     /// </summary>
     public static async Task<int> RunPackageAsync(Pkg p, string mode, CancellationToken ct)
     {
+        if (Demo) return await DemoData.RunPackageAsync(p, mode, ct, Handle);
         var psi = new ProcessStartInfo("winget")
         {
             RedirectStandardOutput = true,
@@ -150,6 +161,11 @@ public static class WingetService
     {
         var text = sb.ToString().Trim();
         sb.Clear();
+        Handle(text, p);
+    }
+
+    private static void Handle(string text, Pkg p)
+    {
         if (text.Length == 0) return;
         if (text.All(c => c is '-' or '\\' or '|' or '/')) return;   // spinner frames
 
@@ -211,16 +227,55 @@ public static class WingetService
 
     public static async Task<PkgDetail> ShowAsync(string id)
     {
-        var text = await RunAsync("show", "--id", id, "-e", "--accept-source-agreements");
+        var text = (await RunAsync("show", "--id", id, "-e", "--accept-source-agreements")).Replace("\r\n", "\n");
 
         string Field(string key)
         {
-            var m = Regex.Match(text, $@"^\s*{key}:\s*(.+?)\s*$", RegexOptions.Multiline);
+            var m = Regex.Match(text, $@"^\s*{Regex.Escape(key)}:[ \t]*(.+?)\s*$", RegexOptions.Multiline);
             return m.Success ? m.Groups[1].Value : "";
         }
 
-        var d = Regex.Match(text, @"^Description:\s*(.*?)(?=^\S|\z)", RegexOptions.Multiline | RegexOptions.Singleline);
-        var desc = d.Success ? Regex.Replace(d.Groups[1].Value, @"\s*\r?\n\s*", " ").Trim() : "";
-        return new PkgDetail(desc, Field("Publisher"), Field("License"), Field("Homepage"));
+        // Multi-line fields: the key on its own line, then indented lines until the next top-level key.
+        List<string> Block(string key)
+        {
+            var m = Regex.Match(text, $@"^{Regex.Escape(key)}:[ \t]*\n((?:[ \t]+.*(?:\n|$))+)", RegexOptions.Multiline);
+            return m.Success
+                ? m.Groups[1].Value.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList()
+                : new List<string>();
+        }
+
+        var desc = Block("Description");
+        string notes = string.Join("\n", Block("Release Notes"));
+        if (notes.Length > 1800) notes = notes[..1800].TrimEnd() + "…";
+
+        return new PkgDetail
+        {
+            Version = Field("Version"),
+            Description = desc.Count > 0 ? string.Join(" ", desc) : Field("Description"),
+            Publisher = Field("Publisher"),
+            PublisherUrl = Field("Publisher Url"),
+            Author = Field("Author"),
+            License = Field("License"),
+            LicenseUrl = Field("License Url"),
+            Homepage = Field("Homepage"),
+            ReleaseNotes = notes.Length > 0 ? notes : Field("Release Notes"),
+            ReleaseNotesUrl = Field("Release Notes Url"),
+            ReleaseDate = Field("Release Date"),
+            InstallerType = Field("Installer Type"),
+            Tags = Block("Tags").Take(12).ToList(),
+        };
+    }
+
+    /// <summary>Every version winget can install for this package, newest first (from <c>winget show --versions</c>).</summary>
+    public static async Task<List<string>> VersionsAsync(string id)
+    {
+        var text = await RunAsync("show", "--id", id, "-e", "--versions", "--accept-source-agreements");
+        var lines = text.Split('\n')
+            .Select(l => (l.Split('\r').LastOrDefault(x => x.Trim().Length > 0) ?? "").Trim())
+            .ToList();
+        int sep = lines.FindIndex(l => Regex.IsMatch(l, @"^-{3,}$"));
+        if (sep < 0) return new List<string>();
+        return lines.Skip(sep + 1).TakeWhile(l => l.Length > 0).Where(Versions.IsSafe).Distinct().ToList();
     }
 }
+

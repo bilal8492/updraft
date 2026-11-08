@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.Windows.Storage.Pickers;
 using Windows.ApplicationModel.DataTransfer;
@@ -18,29 +18,66 @@ namespace Updraft;
 
 public sealed partial class MainWindow : Window
 {
+    /// <summary>"upgrade", "installed", "discover", "import" (restore list or starter pack), "history" or "settings".</summary>
     private string _mode = "upgrade";
     private int _gen;                 // bumped per load so stale async results are dropped
     private bool _jumpToDiscover;     // search submitted from another tab
+    private bool _busy;
+    private string _discoverQuery = "";   // empty: Discover shows its start page
     private readonly List<Pkg> _all = new();
     private readonly Dictionary<string, PkgDetail> _detailCache = new();
+    private readonly Taskbar _taskbar;
+
+    // Updates and Installed lists are kept for a few minutes so switching tabs is instant. F5 always rescans.
+    private static readonly TimeSpan CacheLife = TimeSpan.FromMinutes(5);
+    private readonly Dictionary<string, (List<Pkg> Items, DateTime At)> _listCache = new();
+    private DateTime? _lastScan;
 
     public ObservableCollection<Pkg> Items { get; } = new();
-    public ObservableCollection<HistoryEntry> HistoryItems { get; } = new();
+    public StarterPack[] Packs => Catalog.Packs;
 
     public MainWindow()
     {
         InitializeComponent();
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _scale = Math.Max(1, GetDpiForWindow(hwnd) / 96.0);
+        if (AppWindow.Presenter is OverlappedPresenter op)
+        {
+            op.PreferredMinimumWidth = Scaled(900);
+            op.PreferredMinimumHeight = Scaled(560);
+        }
         RestorePlacement();
         Title = "Updraft";
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "updraft.ico");
         if (File.Exists(icon)) AppWindow.SetIcon(icon);
+        _taskbar = new Taskbar(hwnd);
+
         AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
+        DemoBadge.Visibility = WingetService.Demo ? Visibility.Visible : Visibility.Collapsed;
         ApplyTheme();
         SetupShortcuts();
+        SetupChrome();
+        SetActivity(null);
+
         AppWindow.Changed += AppWindow_Changed;
         AppWindow.Closing += (_, _) => SavePlacement();
-        Closed += (_, _) => _runCts?.Cancel();   // don't leave winget running after the window is gone
-        ((FrameworkElement)Content).Loaded += (_, _) =>
+        Closed += (_, _) =>
+        {
+            _runCts?.Cancel();   // don't leave winget running after the window is gone
+            _taskbar.SetState(Taskbar.State.None);
+        };
+        Activated += (_, e) =>
+        {
+            // A red taskbar button after a failed background run is cleared once the user comes back.
+            if (e.WindowActivationState != WindowActivationState.Deactivated && !_running) _taskbar.SetState(Taskbar.State.None);
+        };
+        var root = (FrameworkElement)Content;
+        root.ActualThemeChanged += (_, _) => ApplyCaptionColors();
+        root.Loaded += (_, _) =>
         {
             Nav.SelectedItem = NavUp;
             PkgList.Focus(FocusState.Programmatic);   // so keyboard shortcuts work straight away
@@ -48,6 +85,12 @@ public sealed partial class MainWindow : Window
     }
 
     // ---------- window placement ----------
+
+    private readonly double _scale;
+    private int Scaled(double effectivePixels) => (int)Math.Round(effectivePixels * _scale);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
 
     private RectInt32 _normalBounds;   // last size/position while neither minimized nor maximized
 
@@ -72,7 +115,7 @@ public sealed partial class MainWindow : Window
                 AppWindow.Resize(new SizeInt32(s.WindowWidth, s.WindowHeight));
             }
         }
-        if (!restored && s.WindowWidth == 0) AppWindow.Resize(new SizeInt32(1180, 760));
+        if (!restored && s.WindowWidth == 0) AppWindow.Resize(new SizeInt32(Scaled(1320), Scaled(840)));
         _normalBounds = new RectInt32(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
         if (s.WindowMaximized && AppWindow.Presenter is OverlappedPresenter op) op.Maximize();
     }
@@ -95,6 +138,35 @@ public sealed partial class MainWindow : Window
         s.Save();
     }
 
+    // ---------- theme ----------
+
+    private void ApplyTheme()
+    {
+        ((FrameworkElement)Content).RequestedTheme = AppSettings.Current.Theme switch
+        {
+            "light" => ElementTheme.Light,
+            "dark" => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+        ApplyCaptionColors();
+    }
+
+    /// <summary>The caption buttons are drawn by Windows: give them colours that match the in-app theme.</summary>
+    private void ApplyCaptionColors()
+    {
+        var tb = AppWindow.TitleBar;
+        bool dark = ((FrameworkElement)Content).ActualTheme == ElementTheme.Dark;
+        var fg = dark ? Colors.White : Colors.Black;
+        tb.ButtonBackgroundColor = Colors.Transparent;
+        tb.ButtonInactiveBackgroundColor = Colors.Transparent;
+        tb.ButtonForegroundColor = fg;
+        tb.ButtonHoverForegroundColor = fg;
+        tb.ButtonPressedForegroundColor = fg;
+        tb.ButtonHoverBackgroundColor = dark ? Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x12, 0, 0, 0);
+        tb.ButtonPressedBackgroundColor = dark ? Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x0C, 0, 0, 0);
+        tb.ButtonInactiveForegroundColor = Color.FromArgb(0xFF, 0x8A, 0x8A, 0x8A);
+    }
+
     // ---------- keyboard shortcuts ----------
 
     private void SetupShortcuts()
@@ -105,13 +177,14 @@ public sealed partial class MainWindow : Window
         {
             var acc = new KeyboardAccelerator { Key = key, Modifiers = mods };
             acc.Invoked += (_, e) => e.Handled = action();   // not handled → the key keeps its normal meaning
-            Nav.KeyboardAccelerators.Add(acc);
+            RootGrid.KeyboardAccelerators.Add(acc);
         }
 
         bool Refresh()
         {
-            if (_running || _mode == "history" || !RefreshBtn.IsEnabled) return false;
-            _ = LoadAsync();
+            if (_running || !IsListMode || !RefreshBtn.IsEnabled) return false;
+            Motion.SpinOnce(RefreshIcon);
+            _ = LoadAsync(force: true);
             return true;
         }
         Add(VirtualKey.F5, VirtualKeyModifiers.None, Refresh);
@@ -131,95 +204,46 @@ public sealed partial class MainWindow : Window
                 return true;
             });
         }
+        Add((VirtualKey)188 /* comma */, VirtualKeyModifiers.Control, () =>
+        {
+            if (!Nav.IsEnabled) return false;
+            Nav.SelectedItem = Nav.SettingsItem;
+            return true;
+        });
+        Add(VirtualKey.F1, VirtualKeyModifiers.None, () => { _ = ShowShortcutsAsync(); return true; });
 
         Add(VirtualKey.A, VirtualKeyModifiers.Control, () =>
         {
             // Inside a text box Ctrl+A selects the text, as usual.
             if (FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox or AutoSuggestBox) return false;
-            if (_running || _mode == "history" || Items.Count == 0) return false;
+            if (_running || !IsListMode || Items.Count == 0) return false;
             bool all = Items.Any(p => !p.IsSelected);
             foreach (var p in Items) p.IsSelected = all;
-            SelectAll.IsChecked = all;
             return true;
         });
 
         Add(VirtualKey.Enter, VirtualKeyModifiers.Control, () =>
         {
-            if (_running || _mode == "history" || !Selected.Any()) return false;
+            if (_running || !IsListMode || !Selected.Any()) return false;
             _ = StartRun(Selected.ToList());
             return true;
         });
 
         Add(VirtualKey.Escape, VirtualKeyModifiers.None, () =>
         {
-            if (!_running) return false;
-            _runCts?.Cancel();
-            SetStatus("Cancelling…", Amber);
-            return true;
+            if (_running)
+            {
+                _runCts?.Cancel();
+                SetActivity("Cancelling…");
+                return true;
+            }
+            if (Toast.Visibility == Visibility.Visible)
+            {
+                HideToast();
+                return true;
+            }
+            return false;
         });
-    }
-
-    private NavigationViewItem? _prevNav;
-    private bool _restoringNav;
-
-    private void ApplyTheme() => ((FrameworkElement)Content).RequestedTheme = AppSettings.Current.Theme switch
-    {
-        "light" => ElementTheme.Light,
-        "dark" => ElementTheme.Dark,
-        _ => ElementTheme.Default,
-    };
-
-    private async Task ShowSettingsAsync()
-    {
-        var s = AppSettings.Current;
-
-        static ComboBox Combo(string[] labels, int selected) =>
-            new() { ItemsSource = labels, SelectedIndex = selected, MinWidth = 260 };
-
-        string[] modes = { "default", "silent", "interactive" };
-        string[] terms = { "auto", "wt", "powershell" };
-        string[] themes = { "system", "light", "dark" };
-
-        var mode = Combo(new[] { "Default (let winget decide)", "Silent (no installer windows)", "Interactive (show installer windows)" },
-            Math.Max(0, Array.IndexOf(modes, s.InstallMode)));
-        var term = Combo(new[] { "Automatic (Windows Terminal, else PowerShell)", "Windows Terminal", "PowerShell" },
-            Math.Max(0, Array.IndexOf(terms, s.Terminal)));
-        var theme = Combo(new[] { "Use system setting", "Light", "Dark" },
-            Math.Max(0, Array.IndexOf(themes, s.Theme)));
-        var agree = new CheckBox { Content = "Automatically accept package and source agreements", IsChecked = s.AcceptAgreements };
-        var admin = new CheckBox { Content = "Run as administrator by default", IsChecked = s.DefaultAdmin };
-
-        var panel = new StackPanel { Spacing = 14, MinWidth = 360 };
-        panel.Children.Add(new StackPanel { Spacing = 4, Children = { new TextBlock { Text = "Installer mode", Opacity = 0.65 }, mode } });
-        panel.Children.Add(agree);
-        panel.Children.Add(admin);
-        panel.Children.Add(new StackPanel { Spacing = 4, Children = { new TextBlock { Text = "Terminal", Opacity = 0.65 }, term } });
-        panel.Children.Add(new StackPanel { Spacing = 4, Children = { new TextBlock { Text = "Theme", Opacity = 0.65 }, theme } });
-
-        var dlg = new ContentDialog
-        {
-            Title = "Settings",
-            Content = panel,
-            PrimaryButtonText = "Save",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = Content.XamlRoot,
-        };
-        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
-
-        // Start from a copy so everything the dialog doesn't edit (skips, window placement) is kept.
-        var next = AppSettings.Current.Clone();
-        next.InstallMode = modes[Math.Max(0, mode.SelectedIndex)];
-        next.AcceptAgreements = agree.IsChecked == true;
-        next.DefaultAdmin = admin.IsChecked == true;
-        next.Terminal = terms[Math.Max(0, term.SelectedIndex)];
-        next.Theme = themes[Math.Max(0, theme.SelectedIndex)];
-        next.Save();
-
-        AdminChk.IsChecked = AppSettings.Current.DefaultAdmin;
-        ApplyTheme();
-        ShowDetail(PkgList.SelectedItem as Pkg);   // refresh the command preview with the new flags
-        SetStatus("Settings saved", Green);
     }
 
     // ---------- helpers ----------
@@ -229,65 +253,27 @@ public sealed partial class MainWindow : Window
 
     private string VerbLabel => _mode switch { "upgrade" => "Update", "installed" => "Uninstall", _ => "Install" };
 
-    private void SetStatus(string msg, Color color)
-    {
-        StatusText.Text = msg;
-        Dot.Fill = new SolidColorBrush(color);
-    }
-
-    private static readonly Color Green = Color.FromArgb(255, 34, 197, 94);
-    private static readonly Color Amber = Color.FromArgb(255, 245, 158, 11);
-    private static readonly Color Red = Color.FromArgb(255, 239, 68, 68);
+    /// <summary>True when the page shows the package list (not History, Settings or the Discover start page).</summary>
+    private bool IsListMode => _mode is "upgrade" or "installed" or "import" || (_mode == "discover" && _discoverQuery.Length > 0);
 
     private void SetBusy(bool busy, string msg = "")
     {
-        Ring.IsActive = busy;
-        if (busy) SetStatus(msg, Amber); else SetStatus("Ready", Green);
+        _busy = busy;
+        SetActivity(busy ? msg : null);
+        Motion.SetSpinning(RefreshIcon, busy);
         UpdateFooter();
-    }
-
-    private void UpdateFooter()
-    {
-        if (_mode == "history")
-        {
-            EmptyMsg.Text = HistoryItems.Count > 0 ? "" : HistoryStore.All.Count > 0 ? "No matches"
-                : "Nothing here yet.\nInstalls, updates and uninstalls you run inside Updraft are listed here.";
-            return;
-        }
-
-        int n = Selected.Count();
-        int total = Listed.Count();
-        SelCount.Text = Items.Count == total
-            ? $"{n} selected  ·  {Items.Count} shown"
-            : $"{n} selected  ·  {Items.Count} of {total} shown";
-        RunBtn.IsEnabled = n > 0 && !_running;
-        CopyBtn.IsEnabled = n > 0 && !_running;
-        RunText.Text = n > 0 ? $"{VerbLabel} {n} in terminal" : "Run in terminal";
-        InstallBtn.IsEnabled = _running || n > 0;
-        InstallIcon.Glyph = _running ? "" : "";   // cancel / play
-        InstallText.Text = _running ? "Cancel" : n > 0 ? $"{VerbLabel} {n}" : VerbLabel;
-
-        EmptyMsg.Text = Items.Count > 0 || Ring.IsActive ? "" : _mode switch
-        {
-            "upgrade" => total > 0 ? "No matches" : "Everything is up to date 🎉",
-            "installed" => "No packages",
-            "import" => total > 0 ? "No matches" : "No apps to restore",
-            _ => _all.Count > 0 ? "No matches" : "Type a name in the search box and press Enter",
-        };
+        UpdateHero();
     }
 
     private void ApplyFilter()
     {
         if (_mode == "history")
         {
-            var hq = Search.Text.Trim();
-            HistoryItems.Clear();
-            foreach (var h in HistoryStore.All.Where(h => hq.Length == 0
-                         || h.Name.Contains(hq, StringComparison.OrdinalIgnoreCase)
-                         || h.Id.Contains(hq, StringComparison.OrdinalIgnoreCase)
-                         || h.Action.Contains(hq, StringComparison.OrdinalIgnoreCase)
-                         || h.Result.Contains(hq, StringComparison.OrdinalIgnoreCase)))
-                HistoryItems.Add(h);
+            RefreshHistory();
+            return;
+        }
+        if (!IsListMode)
+        {
             UpdateFooter();
             return;
         }
@@ -297,64 +283,109 @@ public sealed partial class MainWindow : Window
             || p.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
             || p.Id.Contains(q, StringComparison.OrdinalIgnoreCase));
 
-        if (_sourceFilter.Length > 0)
+        if (_sourceFilter is not null)
             vis = vis.Where(p => string.Equals(p.Source, _sourceFilter, StringComparison.OrdinalIgnoreCase));
 
-        vis = SortBox.SelectedIndex switch
+        vis = _sort switch
         {
             1 => vis.OrderByDescending(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
             2 => vis.OrderBy(p => p.Source, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
             3 => vis.OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase),
+            4 => vis.OrderByDescending(p => p.Kind).ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
             _ => vis.OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase),
         };
 
-        Items.Clear();
-        foreach (var p in vis) Items.Add(p);
+        SyncItems(vis.ToList());
         UpdateFooter();
     }
 
-    private string _sourceFilter = "";      // "" = all sources
+    /// <summary>
+    /// Brings <see cref="Items"/> in line with <paramref name="target"/> with the fewest changes, so filtering keeps the
+    /// selection and scroll position, and rows that stay slide into their new places instead of being rebuilt.
+    /// </summary>
+    private void SyncItems(IList<Pkg> target)
+    {
+        var keep = new HashSet<Pkg>(target);
+        for (int i = Items.Count - 1; i >= 0; i--)
+            if (!keep.Contains(Items[i])) Items.RemoveAt(i);
+        for (int i = 0; i < target.Count; i++)
+        {
+            if (i < Items.Count && ReferenceEquals(Items[i], target[i])) continue;
+            int j = Items.IndexOf(target[i]);
+            if (j >= 0) Items.Move(j, i);
+            else Items.Insert(i, target[i]);
+        }
+    }
+
+    private int _sort;
+    private string? _sourceFilter;      // null = all sources, "" = no source reported
     private bool _rebuildingSources;
 
-    // Rebuild the source dropdown from what the current list actually contains.
+    // Rebuild the source filter from what the current list actually contains.
     private void RefreshSourceChoices()
     {
         _rebuildingSources = true;
-        SourceBox.Items.Clear();
-        SourceBox.Items.Add(new ComboBoxItem { Content = "All sources" });
-        var sources = _all.Select(p => p.Source).Where(s => s.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
-        int sel = 0, i = 1;
-        foreach (var s in sources)
+        SourceBar.Items.Clear();
+        var listed = Listed.ToList();
+        var groups = listed.GroupBy(p => p.Source, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        var all = new SelectorBarItem { Text = $"All  {listed.Count}", Tag = "*" };
+        SourceBar.Items.Add(all);
+        var selected = all;
+        foreach (var g in groups)
         {
-            SourceBox.Items.Add(new ComboBoxItem { Content = s });
-            if (string.Equals(s, _sourceFilter, StringComparison.OrdinalIgnoreCase)) sel = i;
-            i++;
+            var item = new SelectorBarItem { Text = $"{(g.Key.Length == 0 ? "Other" : g.Key)}  {g.Count()}", Tag = g.Key };
+            SourceBar.Items.Add(item);
+            if (_sourceFilter is not null && string.Equals(g.Key, _sourceFilter, StringComparison.OrdinalIgnoreCase)) selected = item;
         }
-        if (sel == 0) _sourceFilter = "";
-        SourceBox.SelectedIndex = sel;
+        if (ReferenceEquals(selected, all)) _sourceFilter = null;
+        SourceBar.SelectedItem = selected;
+        SourceBar.Visibility = groups.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         _rebuildingSources = false;
     }
 
-    private void SortBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void SourceBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        if (IsLoaded()) ApplyFilter();
-    }
-
-    private void SourceBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_rebuildingSources || !IsLoaded()) return;
-        _sourceFilter = SourceBox.SelectedIndex > 0 && SourceBox.SelectedItem is ComboBoxItem it
-            ? (string)it.Content : "";
+        if (_rebuildingSources) return;
+        var tag = sender.SelectedItem?.Tag as string;
+        _sourceFilter = tag is null or "*" ? null : tag;
         ApplyFilter();
     }
 
-    // The ComboBoxes fire SelectionChanged during InitializeComponent, before the rest of the UI exists.
-    private bool IsLoaded() => Search is not null && SelCount is not null;
+    private void Sort_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioMenuFlyoutItem item) return;
+        _sort = int.Parse((string)item.Tag);
+        SortText.Text = _sort switch { 1 => "Name Z–A", 2 => "Source", 3 => "Id", 4 => "Update type", _ => "Name" };
+        ApplyFilter();
+    }
+
+    private void ResetSort()
+    {
+        _sort = 0;
+        SortName.IsChecked = true;
+        SortText.Text = "Name";
+    }
 
     // ---------- loading ----------
 
-    private async Task LoadAsync()
+    private void SetHeader()
+    {
+        PageTitle.Text = _mode switch
+        {
+            "upgrade" => "Updates",
+            "installed" => "Installed",
+            "history" => "History",
+            "import" => _importTitle,
+            "settings" => "Settings",
+            _ => "Discover",
+        };
+        Subtitle.Text = _mode == "discover" && _discoverQuery.Length == 0
+            ? "Find apps in the winget catalogue, or set up a new PC with a starter pack"
+            : "";
+    }
+
+    private async Task LoadAsync(bool force = false)
     {
         int gen = ++_gen;
         string mode = _mode;
@@ -364,23 +395,20 @@ public sealed partial class MainWindow : Window
         Items.Clear();
         SelectAll.IsChecked = false;
         ShowDetail(null);
+        SetHeader();
 
-        PageTitle.Text = mode switch
-        {
-            "upgrade" => "Upgrades",
-            "installed" => "Installed",
-            "history" => "History",
-            "import" => "Restore",
-            _ => "Discover",
-        };
-        Subtitle.Text = "";
-
+        if (mode == "settings") return;
         if (mode == "history")
         {
-            int n = HistoryStore.All.Count;
-            Subtitle.Text = n > 0 ? $"{n} entries  ·  stored on this PC only" : "Stored on this PC only";
             SetBusy(false);
-            ApplyFilter();
+            RefreshHistory();
+            return;
+        }
+
+        if (!force && mode is "upgrade" or "installed" && _listCache.TryGetValue(mode, out var hit) && DateTime.Now - hit.At < CacheLife)
+        {
+            Fill(hit.Items, mode);
+            AfterLoad(mode, q);
             return;
         }
 
@@ -402,10 +430,12 @@ public sealed partial class MainWindow : Window
                 busyMsg = "Reading installed packages…";
                 break;
             default:
+                _discoverQuery = q;
+                ApplyModeLayout();
                 if (q.Length == 0)
                 {
-                    Subtitle.Text = "Search the winget catalogue";
                     SetBusy(false);
+                    ShowDiscoverHome();
                     return;
                 }
                 args = new[] { "search", q, "--accept-source-agreements" };
@@ -433,9 +463,8 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             if (gen != _gen) return;
-            Ring.IsActive = false;
             ReportWingetError(ex);
-            UpdateFooter();
+            SetBusy(false);
             return;
         }
         if (gen != _gen) return;
@@ -447,38 +476,60 @@ public sealed partial class MainWindow : Window
             // A version skip ends once winget offers something newer.
             AppSettings.Current.PruneSkippedVersions(result.GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First().Available, StringComparer.OrdinalIgnoreCase));
+            _lastScan = DateTime.Now;
         }
+        foreach (var p in result) p.IsPinned = pins.Contains(p.Id);
+        if (mode is "upgrade" or "installed") _listCache[mode] = (result, DateTime.Now);
 
-        foreach (var p in result)
+        Fill(result, mode);
+        AfterLoad(mode, q);
+    }
+
+    private void Fill(List<Pkg> pkgs, string mode)
+    {
+        foreach (var p in pkgs)
         {
-            p.IsPinned = pins.Contains(p.Id);
+            p.Mode = mode;
             if (mode == "upgrade") RefreshSkip(p);
+            p.PropertyChanged -= OnPkgChanged;
             p.PropertyChanged += OnPkgChanged;
             _all.Add(p);
         }
+        ArmStagger();
         RefreshSourceChoices();
         ApplyFilter();
         SetBusy(false);
+    }
+
+    private void AfterLoad(string mode, string q)
+    {
+        int pinned = _all.Count(p => p.IsPinned);
         Subtitle.Text = mode switch
         {
-            "installed" => pins.Count > 0 ? $"{_all.Count} packages  ·  {_all.Count(p => p.IsPinned)} pinned" : $"{_all.Count} packages",
-            "discover" => $"{_all.Count} results for “{q}”",
-            "import" => $"{_all.Count} apps in {_importName}  ·  {_all.Count(p => p.IsInstalled)} already installed",
+            "installed" => pinned > 0 ? $"{_all.Count} packages  ·  {pinned} pinned" : $"{_all.Count} packages",
+            "discover" => $"{_all.Count} {(_all.Count == 1 ? "result" : "results")} for “{q}”",
+            "import" => _importIsPack
+                ? $"{_all.Count} apps  ·  {_all.Count(p => p.IsInstalled)} already installed"
+                : $"{_all.Count} apps in {_importName}  ·  {_all.Count(p => p.IsInstalled)} already installed",
             _ => "",
         };
         if (mode == "upgrade") RefreshUpgradeCounts();
+        UpdateHero();
     }
 
-    // Subtitle and nav badge count only the updates that aren't skipped.
+    // Subtitle, hero and nav badge count only the updates that aren't skipped (or already done).
     private void RefreshUpgradeCounts()
     {
         if (_mode != "upgrade") return;
         int skipped = _all.Count(p => p.IsSkipped);
-        int active = _all.Count - skipped;
+        int active = _all.Count(p => !p.IsSkipped && p.State != RunState.Succeeded);
+        bool changed = !Equals(UpBadge.Value, active);
         UpBadge.Value = active;
         UpBadge.Visibility = active > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var text = active > 0 ? $"{active} updates available" : "All packages are up to date";
+        if (changed && active > 0) Motion.Pop(UpBadge, 0.5f);
+        var text = active > 0 ? $"{active} {(active == 1 ? "update" : "updates")} available" : "All apps are up to date";
         Subtitle.Text = skipped > 0 ? $"{text}  ·  {skipped} skipped" : text;
+        UpdateHero();
     }
 
     private bool _showSkipped;
@@ -488,14 +539,15 @@ public sealed partial class MainWindow : Window
 
     private void ShowSkipped_Click(object sender, RoutedEventArgs e)
     {
-        _showSkipped = ShowSkippedChk.IsChecked == true;
+        _showSkipped = ShowSkippedItem.IsChecked;
+        RefreshSourceChoices();
         ApplyFilter();
     }
 
     private void OnPkgChanged(object? s, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(Pkg.IsSelected)) UpdateFooter();
-        else if (e.PropertyName == nameof(Pkg.Log) && ReferenceEquals(s, PkgList.SelectedItem)) ShowLog(s as Pkg);
+        else if (e.PropertyName == nameof(Pkg.Log) && ReferenceEquals(s, _shownPkg)) ShowLog(s as Pkg);
     }
 
     private void ShowLog(Pkg? p)
@@ -503,75 +555,110 @@ public sealed partial class MainWindow : Window
         var log = p?.Log ?? "";
         DLogPanel.Visibility = log.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         DLog.Text = log;
+        if (log.Length > 0) DispatcherQueue.TryEnqueue(() => DLogScroll.ChangeView(null, DLogScroll.ScrollableHeight, null, true));
     }
 
     private void DCopyLog_Click(object sender, RoutedEventArgs e)
     {
-        if (PkgList.SelectedItem is not Pkg p) return;
+        if (_shownPkg is not { } p) return;
         CopyText(p.Log);
-        SetStatus("Log copied", Green);
+        Notify("Log copied", "Info");
     }
 
     // ---------- navigation & search ----------
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (args.IsSettingsSelected)
-        {
-            // Settings is a dialog, not a page: show it and put the selection back where it was.
-            _restoringNav = true;
-            Nav.SelectedItem = _prevNav ?? NavUp;
-            _ = ShowSettingsAsync();
-            return;
-        }
-        if (_restoringNav) { _restoringNav = false; return; }   // selection put back after Settings: no reload
-        if (args.SelectedItem is not NavigationViewItem item) return;
-        _prevNav = item;
-        _mode = _pendingImport ? "import" : (string)item.Tag;
+        string next;
+        if (args.IsSettingsSelected) next = "settings";
+        else if (args.SelectedItem is NavigationViewItem item) next = _pendingImport ? "import" : (string)item.Tag;
+        else return;
+
         _pendingImport = false;
+        _mode = next;
         if (!_jumpToDiscover) Search.Text = "";
         _jumpToDiscover = false;
+        if (_mode == "discover") _discoverQuery = Search.Text.Trim();
+        if (_mode != "upgrade" && _sort == 4) ResetSort();
+        _sourceFilter = null;
         ApplyModeLayout();
+        PlayPageTransition();
+        if (_mode == "settings")
+        {
+            ShowDetail(null);
+            LoadSettingsUi();
+            return;
+        }
         _ = LoadAsync();
     }
 
-    // History is a read-only log: it swaps the package list, detail pane and action bar for its own list.
+    /// <summary>Shows the parts of the window the current page uses.</summary>
     private void ApplyModeLayout()
     {
-        bool hist = _mode == "history";
-        var show = hist ? Visibility.Collapsed : Visibility.Visible;
-        var showHist = hist ? Visibility.Visible : Visibility.Collapsed;
-        PkgList.Visibility = show;
-        ListTools.Visibility = show;
-        RefreshBtn.Visibility = show;
-        BackupBtn.Visibility = show;
-        DetailPane.Visibility = show;
-        ActionBar.Visibility = show;
-        DetailCol.Width = hist ? new GridLength(0) : new GridLength(2, GridUnitType.Star);
-        DetailCol.MinWidth = hist ? 0 : 320;
-        HistList.Visibility = showHist;
-        ClearHistoryBtn.Visibility = showHist;
-        Search.PlaceholderText = _mode switch { "discover" => "Search winget", "history" => "Filter history", _ => "Filter this list" };
-        ShowSkippedChk.Visibility = _mode == "upgrade" ? Visibility.Visible : Visibility.Collapsed;
+        bool hist = _mode == "history", settings = _mode == "settings";
+        bool home = _mode == "discover" && _discoverQuery.Length == 0;
+        bool list = IsListMode;
+        static Visibility V(bool b) => b ? Visibility.Visible : Visibility.Collapsed;
+
+        MainCol.Visibility = V(!settings);
+        SettingsView.Visibility = V(settings);
+        Hero.Visibility = V(_mode == "upgrade");
+        ListTools.Visibility = V(list);
+        PkgList.Visibility = V(list);
+        HistList.Visibility = V(hist);
+        DiscoverHome.Visibility = V(home);
+        RefreshBtn.Visibility = V(list);
+        BackupBtn.Visibility = V(!hist && !settings);
+        ClearHistoryBtn.Visibility = V(hist);
+        DetailPane.Visibility = V(list);
+        AdaptLayout();
+        ShowSkippedItem.Visibility = ShowSkippedSep.Visibility = V(_mode == "upgrade");
+        SortKind.Visibility = V(_mode == "upgrade");
+        AppTitleBar.IsBackButtonVisible = _mode == "import" || (_mode == "discover" && !home);
+        Search.PlaceholderText = _mode switch
+        {
+            "discover" => "Search the winget catalogue",
+            "history" => "Filter history",
+            "upgrade" => "Filter updates  (Enter searches winget)",
+            "installed" => "Filter installed apps  (Enter searches winget)",
+            _ => "Search the winget catalogue",
+        };
+        if (!list) SetActionBar(false);
+        UpdateFooter();
+    }
+
+    /// <summary>The detail pane narrows on small windows so the list keeps enough room.</summary>
+    private void AdaptLayout()
+    {
+        bool detail = DetailPane.Visibility == Visibility.Visible;
+        double w = ContentRoot.ActualWidth;
+        DetailCol.Width = new GridLength(!detail ? 0 : w > 0 && w < 1000 ? 336 : 400);
+    }
+
+    private void PlayPageTransition()
+    {
+        if (_mode == "settings")
+        {
+            Motion.FadeInUp(SettingsContent, distance: 16, durationMs: 420);
+            return;
+        }
+        Motion.FadeInUp(MainCol, distance: 14, durationMs: 400);
+        if (DetailPane.Visibility == Visibility.Visible) Motion.FadeInUp(DetailPane, delayMs: 70, distance: 14, durationMs: 420);
     }
 
     private async void ClearHistory_Click(object sender, RoutedEventArgs e)
     {
         if (HistoryStore.All.Count == 0) return;
-        var dlg = new ContentDialog
-        {
-            Title = "Clear history?",
-            Content = "This deletes the list of past installs, updates and uninstalls. Your apps aren't affected.",
-            PrimaryButtonText = "Clear",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = Content.XamlRoot,
-        };
-        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+        var dlg = NewDialog();
+        dlg.Title = "Clear history?";
+        dlg.Content = "This deletes the list of past installs, updates and uninstalls. Your apps aren't affected.";
+        dlg.PrimaryButtonText = "Clear";
+        dlg.CloseButtonText = "Cancel";
+        dlg.DefaultButton = ContentDialogButton.Close;
+        if (await ShowDialogAsync(dlg) != ContentDialogResult.Primary) return;
         HistoryStore.Clear();
-        Subtitle.Text = "Stored on this PC only";
-        ApplyFilter();
-        SetStatus("History cleared", Green);
+        RefreshHistory();
+        Notify("History cleared");
     }
 
     /// <summary>winget not being installed gets a clear explanation and a fix, not a raw exception message.</summary>
@@ -580,26 +667,32 @@ public sealed partial class MainWindow : Window
         if (WingetService.IsMissing(ex))
         {
             WingetBar.IsOpen = true;
-            SetStatus("winget was not found on this PC", Red);
+            SetActivity("winget was not found", error: true);
         }
         else
         {
-            SetStatus("winget failed: " + ex.Message, Red);
+            SetActivity("winget failed", error: true);
+            Notify("winget failed: " + ex.Message, "Error");
         }
+        UpdateFooter();
+        UpdateHero();
     }
 
     private void Search_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput && _mode != "discover")
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput && _mode is not ("discover" or "settings"))
             ApplyFilter();
     }
 
     private void Search_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
+        if (_running) return;
+        if (Search.Text.Trim().Length == 0 && _mode != "discover") return;
         if (_mode == "import")
         {
             // Discover is already the selected nav item while restoring, so switch the mode directly.
             _mode = "discover";
+            _discoverQuery = Search.Text.Trim();
             ApplyModeLayout();
             _ = LoadAsync();
         }
@@ -610,13 +703,21 @@ public sealed partial class MainWindow : Window
         }
         else
         {
+            _discoverQuery = Search.Text.Trim();
+            ApplyModeLayout();
             _ = LoadAsync();
         }
     }
 
-    private void Refresh_Click(object sender, RoutedEventArgs e) => _ = LoadAsync();
+    private void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        Motion.SpinOnce(RefreshIcon);
+        _ = LoadAsync(force: true);
+    }
 
     // ---------- detail pane ----------
+
+    private Pkg? _shownPkg;
 
     private void PkgList_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         ShowDetail(PkgList.SelectedItem as Pkg);
@@ -625,124 +726,232 @@ public sealed partial class MainWindow : Window
     {
         if (p is null)
         {
+            _shownPkg = null;
             DPanel.Visibility = Visibility.Collapsed;
             DEmpty.Visibility = Visibility.Visible;
+            DAvatar.Pkg = null;
             return;
         }
+        bool changed = !ReferenceEquals(_shownPkg, p);
+        _shownPkg = p;
         DEmpty.Visibility = Visibility.Collapsed;
         DPanel.Visibility = Visibility.Visible;
+        if (changed)
+        {
+            DPanel.ChangeView(null, 0, null, true);
+            Motion.FadeInFromRight(DContent);
+        }
         ShowLog(p);
 
+        DAvatar.Pkg = p;
         DName.Text = p.Name;
-        DId.Text = $"{p.Id}  ·  {p.Source}";
-        DInst.Text = _mode switch
-        {
-            "discover" => "—",
-            "import" => p.IsInstalled ? "Yes" : "No",
-            _ => p.Version,
-        };
-        DLatest.Text = p.Available.Length > 0 ? p.Available : p.Version;
-        DCmd.Text = WingetService.Command(p, _mode);
-        DAction.Content = $"{VerbLabel} {p.Name}";
-        UpdatePinSkipButtons(p);
+        DId.Text = p.Id;
+        DSourcePill.Text = p.Source;
+        DSourcePill.Tone = p.SourceTone;
+        DSourcePill.Visibility = p.SourceVisibility;
+        DKindPill.Text = p.KindLabel.Length > 0 ? $"{p.KindLabel} update" : "";
+        DKindPill.Tone = p.KindTone;
+        DKindPill.Visibility = p.KindVisibility;
+        DPinnedPill.Visibility = p.PinnedVisibility;
+        DSkippedPill.Text = p.SkipLabel;
+        DSkippedPill.Visibility = p.SkippedVisibility;
+        DInstalledPill.Visibility = p.InstalledVisibility;
+        UpdateVersionCard(p);
+        UpdateDetailAction(p);
+        DCmd.Text = p.IsManageable ? WingetService.Command(p, _mode) : "winget can't manage this app by id (it was installed outside winget).";
+
         DDesc.Text = "Loading details…";
-        DPub.Text = DLic.Text = "";
+        DPub.Text = DLic.Text = DInstaller.Text = "";
+        DSource.Text = p.Source.Length > 0 ? p.Source : "Not from a winget source";
         DHome.Content = "";
         DHome.NavigateUri = null;
+        DTags.Children.Clear();
+        DNotesSection.Visibility = Visibility.Collapsed;
 
         if (!_detailCache.TryGetValue(p.Id, out var d))
         {
-            try { d = await Task.Run(() => WingetService.ShowAsync(p.Id)); }
-            catch { d = new PkgDetail("", "", "", ""); }
+            if (!p.IsManageable) d = PkgDetail.Empty;
+            else
+            {
+                try { d = await Task.Run(() => WingetService.ShowAsync(p.Id)); }
+                catch { d = PkgDetail.Empty; }
+            }
             _detailCache[p.Id] = d;
         }
-        if (!ReferenceEquals(PkgList.SelectedItem, p)) return;   // selection moved on
+        if (!ReferenceEquals(_shownPkg, p)) return;   // selection moved on
 
         DDesc.Text = d.Description.Length > 0 ? d.Description : "No description available.";
-        DPub.Text = d.Publisher;
-        DLic.Text = d.License;
-        DHome.Content = d.Homepage;
-        DHome.NavigateUri = Uri.TryCreate(d.Homepage, UriKind.Absolute, out var u) ? u : null;
+        DPub.Text = d.Publisher.Length > 0 ? d.Publisher : d.Author.Length > 0 ? d.Author : "—";
+        DLic.Text = d.License.Length > 0 ? d.License : "—";
+        bool hasHome = Uri.TryCreate(d.Homepage, UriKind.Absolute, out var home) && home.Scheme is "https" or "http";
+        DHome.NavigateUri = hasHome ? home : null;
+        DHome.Content = hasHome ? (home!.Host + home.AbsolutePath).TrimEnd('/') : "";
+        DHome.Visibility = DHomeLabel.Visibility = hasHome ? Visibility.Visible : Visibility.Collapsed;
+        DInstaller.Text = d.InstallerType;
+        DInstaller.Visibility = DInstallerLabel.Visibility = d.InstallerType.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var tag in d.Tags) DTags.Children.Add(new Pill { Text = tag });
+        DTags.Visibility = DTagsLabel.Visibility = d.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        bool hasNotes = d.ReleaseNotes.Length > 0;
+        bool hasNotesLink = Uri.TryCreate(d.ReleaseNotesUrl, UriKind.Absolute, out var notesUri) && notesUri.Scheme is "https" or "http";
+        if (hasNotes || hasNotesLink)
+        {
+            DNotes.Text = hasNotes ? d.ReleaseNotes : "This release doesn't include notes in winget.";
+            DNotes.MaxLines = 7;
+            DNotesMore.Content = "Show more";
+            DNotesMore.Visibility = d.ReleaseNotes.Length > 360 || d.ReleaseNotes.Count(c => c == '\n') > 6 ? Visibility.Visible : Visibility.Collapsed;
+            DNotesLink.NavigateUri = hasNotesLink ? notesUri : null;
+            DNotesLink.Visibility = hasNotesLink ? Visibility.Visible : Visibility.Collapsed;
+            DNotesDate.Text = DateTime.TryParse(d.ReleaseDate, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var released)
+                ? $"{(d.Version.Length > 0 ? d.Version + "  ·  " : "")}{released:d MMM yyyy}"
+                : d.Version;
+            DNotesSection.Visibility = Visibility.Visible;
+        }
     }
 
-    private void DCopy_Click(object sender, RoutedEventArgs e)
+    private void UpdateVersionCard(Pkg p)
+    {
+        bool twoSided = _mode == "upgrade" || (p.TargetVersion.Length > 0 && _mode != "installed") || (_mode == "installed" && p.Available.Length > 0);
+        DArrow.Visibility = DTo.Visibility = DToLabel.Visibility = twoSided ? Visibility.Visible : Visibility.Collapsed;
+        switch (_mode)
+        {
+            case "upgrade":
+                DFromLabel.Text = "INSTALLED";
+                DFrom.Text = p.Version;
+                DToLabel.Text = p.TargetVersion.Length > 0 ? "CHOSEN" : "LATEST";
+                DTo.Text = p.TargetText;
+                break;
+            case "installed":
+                DFromLabel.Text = "INSTALLED";
+                DFrom.Text = p.Version;
+                DToLabel.Text = "AVAILABLE";
+                DTo.Text = p.Available;
+                break;
+            case "import":
+                DFromLabel.Text = p.IsInstalled ? "INSTALLED" : "WILL INSTALL";
+                DFrom.Text = p.IsInstalled ? p.Version : p.TargetVersion.Length > 0 ? p.TargetVersion : "Latest version";
+                DToLabel.Text = "CHOSEN";
+                DTo.Text = p.TargetVersion;
+                if (!p.IsInstalled) DArrow.Visibility = DTo.Visibility = DToLabel.Visibility = Visibility.Collapsed;
+                break;
+            default:
+                DFromLabel.Text = "LATEST";
+                DFrom.Text = p.Version;
+                DToLabel.Text = "CHOSEN";
+                DTo.Text = p.TargetVersion;
+                break;
+        }
+    }
+
+    private void UpdateDetailAction(Pkg p)
+    {
+        bool done = _mode == "import" && p.IsInstalled;
+        DActionIcon.Glyph = done ? "" : p.ActionGlyph;
+        DActionText.Text = !p.IsManageable ? "Can't be managed by winget"
+            : done ? "Already installed"
+            : _mode switch
+            {
+                "upgrade" => $"Update to {p.TargetText}",
+                "installed" => $"Uninstall {p.Name}",
+                _ => p.TargetVersion.Length > 0 ? $"Install {p.TargetVersion}" : $"Install {p.Name}",
+            };
+        DAction.IsEnabled = !_running && p.IsManageable && !done;
+    }
+
+    private void DNotesMore_Click(object sender, RoutedEventArgs e)
+    {
+        bool expand = DNotes.MaxLines != 0;
+        DNotes.MaxLines = expand ? 0 : 7;
+        DNotesMore.Content = expand ? "Show less" : "Show more";
+    }
+
+    private async void DCopy_Click(object sender, RoutedEventArgs e)
     {
         CopyText(DCmd.Text);
-        SetStatus("Command copied", Green);
+        DCopyIcon.Glyph = "";
+        Motion.Pop(DCopyIcon, 0.3f);
+        ToolTipService.SetToolTip(DCopy, "Copied!");
+        await Task.Delay(1600);
+        DCopyIcon.Glyph = "";
+        Motion.Pop(DCopyIcon, 0.6f);
+        ToolTipService.SetToolTip(DCopy, "Copy command");
     }
 
     private void DAction_Click(object sender, RoutedEventArgs e)
     {
-        if (_running || PkgList.SelectedItem is not Pkg p) return;
+        if (_running || _shownPkg is not { } p) return;
         _ = StartRun(new[] { p });
     }
 
-    // ---------- skip & pin ----------
-
-    private void UpdatePinSkipButtons(Pkg p)
+    private void DMoreMenu_Opening(object sender, object e)
     {
-        bool up = _mode == "upgrade";
-        DSkipMenu.Visibility = up && !p.IsSkipped ? Visibility.Visible : Visibility.Collapsed;
-        DSkip.Visibility = up && p.IsSkipped ? Visibility.Visible : Visibility.Collapsed;
-        DSkipVersion.Text = p.Available.Length > 0 ? $"Skip version {p.Available}" : "Skip this version";
-        DSkipVersion.IsEnabled = p.Available.Length > 0;
-        DPin.Visibility = _mode is "discover" or "import" ? Visibility.Collapsed : Visibility.Visible;
-        DPin.Content = p.IsPinned ? "Unpin" : "Pin version";
+        DMoreMenu.Items.Clear();
+        if (_shownPkg is { } p) BuildPkgMenu(DMoreMenu.Items, p, includePrimary: false);
     }
+
+    // ---------- skip & pin ----------
 
     private static void RefreshSkip(Pkg p)
     {
         var s = AppSettings.Current;
         p.IsSkipped = s.IsSkipped(p.Id, p.Available);
-        p.SkipLabel = s.SkippedVersionOf(p.Id) is { } v ? $"skipped {v}" : "skipped";
+        p.SkipLabel = s.SkippedVersionOf(p.Id) is { } v ? $"Skipped {v}" : "Skipped";
     }
 
-    private void ApplySkip(Pkg p, string message)
+    private void ApplySkip(Pkg p, string message, Action? undo)
     {
         RefreshSkip(p);
         if (p.IsSkipped) p.IsSelected = false;
-        ApplyFilter();           // a newly skipped row leaves the list (selection clears, detail pane closes)
+        RefreshSourceChoices();
+        ApplyFilter();           // a newly skipped row leaves the list (and the detail pane closes)
         RefreshUpgradeCounts();
-        UpdatePinSkipButtons(p);
-        SetStatus(message, Green);
+        if (ReferenceEquals(_shownPkg, p)) ShowDetail(p);
+        Notify(message, "Success", undo is null ? null : "Undo", undo);
     }
 
-    private void DSkipVersion_Click(object sender, RoutedEventArgs e)
+    private void SkipVersion(Pkg p)
     {
-        if (PkgList.SelectedItem is not Pkg p || p.Available.Length == 0) return;
+        if (p.Available.Length == 0) return;
         AppSettings.Current.SkipVersion(p.Id, p.Available);
-        ApplySkip(p, $"Skipping {p.Name} {p.Available}. It comes back when a newer version is out.");
+        ApplySkip(p, $"Skipping {p.Name} {p.Available}. It comes back when a newer version is out.", () => Unskip(p, quiet: true));
     }
 
-    private void DSkipAlways_Click(object sender, RoutedEventArgs e)
+    private void SkipAlways(Pkg p)
     {
-        if (PkgList.SelectedItem is not Pkg p) return;
         AppSettings.Current.SetSkipped(p.Id, true);
-        ApplySkip(p, $"Skipping all updates for {p.Name}. Tick “Show skipped” to see it again.");
+        ApplySkip(p, $"Skipping all updates for {p.Name}. Manage skips in Settings.", () => Unskip(p, quiet: true));
     }
 
-    private void DSkip_Click(object sender, RoutedEventArgs e)
+    private void Unskip(Pkg p, bool quiet = false)
     {
-        if (PkgList.SelectedItem is not Pkg p) return;
         AppSettings.Current.SetSkipped(p.Id, false);
-        ApplySkip(p, $"{p.Name} will show up in updates again");
+        if (quiet)
+        {
+            RefreshSkip(p);
+            RefreshSourceChoices();
+            ApplyFilter();
+            RefreshUpgradeCounts();
+            Notify($"{p.Name} is back in Updates", "Info");
+            return;
+        }
+        ApplySkip(p, $"{p.Name} will show up in Updates again", null);
     }
 
     private bool _pinBusy;
 
-    private async void DPin_Click(object sender, RoutedEventArgs e)
+    private async Task TogglePinAsync(Pkg p)
     {
-        if (_pinBusy || _running || PkgList.SelectedItem is not Pkg p) return;
-        if (!WingetService.IsSafeId(p.Id))
+        if (_pinBusy || _running) return;
+        if (!p.IsManageable)
         {
-            SetStatus("Skipped: the package id looks unsafe or truncated", Red);
+            Notify("Skipped: the package id looks unsafe or truncated", "Error");
             return;
         }
 
         bool unpin = p.IsPinned;
         _pinBusy = true;
-        DPin.IsEnabled = false;
-        SetStatus($"{(unpin ? "Unpinning" : "Pinning")} {p.Name}…", Amber);
+        SetActivity($"{(unpin ? "Unpinning" : "Pinning")} {p.Name}…");
         try
         {
             var (code, output) = await Task.Run(() =>
@@ -750,34 +959,36 @@ public sealed partial class MainWindow : Window
             if (code != 0)
             {
                 var why = WingetService.LastLine(output);
-                SetStatus($"Could not {(unpin ? "unpin" : "pin")} {p.Name}" + (why.Length > 0 ? ": " + why : $" (exit code 0x{code:X8})"), Red);
+                Notify($"Could not {(unpin ? "unpin" : "pin")} {p.Name}" + (why.Length > 0 ? ": " + why : $" (exit code 0x{code:X8})"), "Error");
                 return;
             }
 
+            _listCache.Clear();   // pins change what winget offers as updates
             p.IsPinned = !unpin;
             if (!unpin && _mode == "upgrade")
             {
                 // winget no longer offers a pinned app as an update, so take it off this list too.
                 p.IsSelected = false;
                 _all.Remove(p);
+                RefreshSourceChoices();
                 ApplyFilter();
                 RefreshUpgradeCounts();
-                SetStatus($"Pinned {p.Name}. It won't be offered as an update. Manage pins in Installed.", Green);
+                Notify($"Pinned {p.Name}. It won't be offered as an update. Manage pins in Installed.");
             }
             else
             {
-                UpdatePinSkipButtons(p);
-                SetStatus(unpin ? $"Unpinned {p.Name}" : $"Pinned {p.Name} at {p.Version}", Green);
+                if (ReferenceEquals(_shownPkg, p)) ShowDetail(p);
+                Notify(unpin ? $"Unpinned {p.Name}" : $"Pinned {p.Name} at {p.Version}");
             }
         }
         catch (Exception ex)
         {
-            SetStatus("winget failed: " + ex.Message, Red);
+            Notify("winget failed: " + ex.Message, "Error");
         }
         finally
         {
             _pinBusy = false;
-            DPin.IsEnabled = true;
+            SetActivity(null);
         }
     }
 
@@ -788,8 +999,26 @@ public sealed partial class MainWindow : Window
 
     private void Install_Click(object sender, RoutedEventArgs e)
     {
-        if (_running) { _runCts?.Cancel(); SetStatus("Cancelling…", Amber); return; }
+        if (_running)
+        {
+            _runCts?.Cancel();
+            SetActivity("Cancelling…");
+            return;
+        }
         _ = StartRun(Selected.ToList());
+    }
+
+    private void UpdateAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running || _mode != "upgrade") return;
+        // What runs is exactly what is on screen and ticked: clear the filters so every pending update is listed.
+        Search.Text = "";
+        _sourceFilter = null;
+        RefreshSourceChoices();
+        ApplyFilter();
+        var targets = Items.Where(p => !p.IsSkipped && p.IsManageable && p.State != RunState.Succeeded).ToList();
+        foreach (var p in Items) p.IsSelected = targets.Contains(p);
+        _ = StartRun(targets);
     }
 
     // Elevation can't be combined with captured output, so "Run as administrator" keeps using the terminal.
@@ -821,16 +1050,13 @@ public sealed partial class MainWindow : Window
         body.Children.Add(new TextBlock { Text = "This removes the app and can't be undone from Updraft.", TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new ScrollViewer { MaxHeight = 260, Content = list });
 
-        var dlg = new ContentDialog
-        {
-            Title = pkgs.Count == 1 ? $"Uninstall {pkgs[0].Name}?" : $"Uninstall {pkgs.Count} apps?",
-            Content = body,
-            PrimaryButtonText = "Uninstall",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = Content.XamlRoot,
-        };
-        return await dlg.ShowAsync() == ContentDialogResult.Primary;
+        var dlg = NewDialog();
+        dlg.Title = pkgs.Count == 1 ? $"Uninstall {pkgs[0].Name}?" : $"Uninstall {pkgs.Count} apps?";
+        dlg.Content = body;
+        dlg.PrimaryButtonText = "Uninstall";
+        dlg.CloseButtonText = "Cancel";
+        dlg.DefaultButton = ContentDialogButton.Close;
+        return await ShowDialogAsync(dlg) == ContentDialogResult.Primary;
     }
 
     private async Task RunInAppAsync(IReadOnlyList<Pkg> pkgs)
@@ -839,7 +1065,7 @@ public sealed partial class MainWindow : Window
         var safe = pkgs.Where(p => WingetService.IsSafeId(p.Id)).ToList();
         if (safe.Count == 0)
         {
-            SetStatus("Skipped: the package id looks unsafe or truncated", Red);
+            Notify("Skipped: the package id looks unsafe or truncated", "Error");
             return;
         }
 
@@ -849,6 +1075,7 @@ public sealed partial class MainWindow : Window
         _runCts = new CancellationTokenSource();
         var ct = _runCts.Token;
         SetRunLock(true);
+        _taskbar.SetState(Taskbar.State.Indeterminate);
 
         foreach (var p in safe) { p.ResetRun(); p.SetState(RunState.Queued, "Queued"); }
 
@@ -859,7 +1086,7 @@ public sealed partial class MainWindow : Window
             Name = p.Name,
             Id = p.Id,
             FromVersion = mode is "upgrade" or "installed" ? p.Version : "",
-            ToVersion = mode switch { "upgrade" => p.Available, "discover" => p.Version, _ => "" },
+            ToVersion = mode switch { "upgrade" => p.TargetText, "discover" or "import" => p.TargetVersion.Length > 0 ? p.TargetVersion : p.Version, _ => "" },
             Result = result,
             ExitCode = code,
         });
@@ -877,7 +1104,16 @@ public sealed partial class MainWindow : Window
             }
 
             p.SetState(RunState.Running, "Starting…");
-            SetStatus($"{verb} {p.Name}  ({i + 1} of {safe.Count})", Amber);
+            _runPkg = p;
+            _runIndex = i;
+            _runTotal = safe.Count;
+            _runVerb = verb;
+            ShowRunProgress();
+            PropertyChangedEventHandler onProgress = (_, e) =>
+            {
+                if (e.PropertyName is nameof(Pkg.Progress) or nameof(Pkg.RunStatus)) ShowRunProgress();
+            };
+            p.PropertyChanged += onProgress;
             try
             {
                 int code = await WingetService.RunPackageAsync(p, mode, ct);
@@ -911,29 +1147,68 @@ public sealed partial class MainWindow : Window
                 Record(p, "Failed", 0);
                 if (WingetService.IsMissing(ex)) WingetBar.IsOpen = true;
             }
+            finally
+            {
+                p.PropertyChanged -= onProgress;
+            }
         }
 
         _running = false;
+        _runPkg = null;
         _runCts.Dispose();
         _runCts = null;
+        _listCache.Clear();   // installed apps and available updates have changed
         SetRunLock(false);
 
         if (removed.Count > 0 && _mode == mode)
         {
             // Dropped in one go at the end (not one by one) so rows don't jump around while the run is in progress.
             foreach (var p in removed) _all.Remove(p);
+            RefreshSourceChoices();
             ApplyFilter();
             int pinned = _all.Count(p => p.IsPinned);
             Subtitle.Text = pinned > 0 ? $"{_all.Count} packages  ·  {pinned} pinned" : $"{_all.Count} packages";
         }
+        if (_mode == mode && mode == "import")
+            Subtitle.Text = _importIsPack
+                ? $"{_all.Count} apps  ·  {_all.Count(p => p.IsInstalled)} already installed"
+                : $"{_all.Count} apps in {_importName}  ·  {_all.Count(p => p.IsInstalled)} already installed";
+        if (_shownPkg is { } shown) ShowDetail(shown);
+        RefreshUpgradeCounts();
+        UpdateHero();
+
+        // Taskbar: red if anything failed (cleared when the window is next activated), and a flash if we're in the background.
+        if (failed > 0)
+        {
+            _taskbar.SetProgress(1);
+            _taskbar.SetState(Taskbar.State.Error);
+        }
+        else
+        {
+            _taskbar.SetState(Taskbar.State.None);
+        }
+        _taskbar.FlashIfInBackground();
 
         var parts = new List<string>();
         if (safe.Count < pkgs.Count) parts.Add($"{pkgs.Count - safe.Count} skipped (no usable package id)");
-        if (ok > 0) parts.Add($"{ok} succeeded");
+        if (ok > 0) parts.Add($"{ok} {(mode == "installed" ? "removed" : mode == "upgrade" ? "updated" : "installed")}");
         if (failed > 0) parts.Add($"{failed} failed");
         if (cancelled > 0) parts.Add($"{cancelled} cancelled");
-        SetStatus(string.Join(", ", parts) + (failed + cancelled > 0 ? " — unfinished items stay selected so you can retry" : " — press Refresh to rescan"),
-            failed > 0 ? Red : cancelled > 0 ? Amber : Green);
+        var summary = string.Join(", ", parts);
+        if (failed + cancelled > 0)
+        {
+            Notify(summary + ". Unfinished items stay selected so you can retry.", failed > 0 ? "Error" : "Warning", "Retry", () =>
+            {
+                if (!_running && _mode == mode) _ = StartRun(Selected.ToList());
+            });
+        }
+        else
+        {
+            Celebrate();
+            if (mode == "upgrade") Notify(summary + ". Nice and fresh.", "Success", "Rescan", () => _ = LoadAsync(force: true));
+            else Notify(summary, "Success", "History", () => Nav.SelectedItem = NavHistory);
+        }
+        SetActivity(null);
     }
 
     // While a run is going, block anything that would reload or replace the list under it.
@@ -943,14 +1218,19 @@ public sealed partial class MainWindow : Window
         RefreshBtn.IsEnabled = !locked;
         BackupBtn.IsEnabled = !locked;
         SelectAll.IsEnabled = !locked;
-        DAction.IsEnabled = !locked;
+        DAction.IsEnabled = !locked && _shownPkg is { IsManageable: true };
+        UpdateAllBtn.IsEnabled = !locked;
+        AppTitleBar.IsBackButtonEnabled = !locked;
         UpdateFooter();
+        UpdateHero();
     }
 
     // ---------- backup & restore ----------
 
-    private List<Pkg>? _importPkgs;     // packages read from the chosen export file
+    private List<Pkg>? _importPkgs;     // packages read from the chosen export file, or a starter pack
     private string _importName = "";
+    private string _importTitle = "Restore";
+    private bool _importIsPack;
     private bool _pendingImport;        // the next nav selection opens the restore list
 
     private async void Export_Click(object sender, RoutedEventArgs e)
@@ -971,12 +1251,12 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus("Could not open the save dialog: " + ex.Message, Red);
+            Notify("Could not open the save dialog: " + ex.Message, "Error");
             return;
         }
 
         BackupBtn.IsEnabled = false;
-        SetStatus("Exporting installed apps…", Amber);
+        SetActivity("Exporting installed apps…");
         try
         {
             var (code, output) = await Task.Run(() =>
@@ -986,11 +1266,12 @@ public sealed partial class MainWindow : Window
             if (n == 0)
             {
                 var why = WingetService.LastLine(output);
-                SetStatus("Export failed" + (why.Length > 0 ? ": " + why : $" (exit code 0x{code:X8})"), Red);
+                Notify("Export failed" + (why.Length > 0 ? ": " + why : $" (exit code 0x{code:X8})"), "Error");
             }
             else
             {
-                SetStatus($"Exported {n} apps to {Path.GetFileName(path)}. Use Backup → Restore on any PC to reinstall them.", Green);
+                Notify($"Exported {n} apps to {Path.GetFileName(path)}. Use Backup → Restore on any PC to reinstall them.", "Success",
+                    "Show file", () => Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }));
             }
         }
         catch (Exception ex)
@@ -1000,6 +1281,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             BackupBtn.IsEnabled = !_running;
+            SetActivity(null);
         }
     }
 
@@ -1017,7 +1299,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus("Could not open the file dialog: " + ex.Message, Red);
+            Notify("Could not open the file dialog: " + ex.Message, "Error");
             return;
         }
 
@@ -1029,22 +1311,31 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
         {
-            SetStatus("Can't restore from that file: " + ex.Message, Red);
+            Notify("Can't restore from that file: " + ex.Message, "Error");
             return;
         }
         if (pkgs.Count == 0)
         {
-            SetStatus("That file doesn't list any apps", Amber);
+            Notify("That file doesn't list any apps", "Warning");
             return;
         }
 
+        OpenImportList(pkgs, "Restore", Path.GetFileName(path), isPack: false);
+    }
+
+    /// <summary>Shows a list of apps to install (a restore file or a starter pack) under Discover.</summary>
+    private void OpenImportList(List<Pkg> pkgs, string title, string name, bool isPack)
+    {
         _importPkgs = pkgs;
-        _importName = Path.GetFileName(path);
+        _importTitle = title;
+        _importName = name;
+        _importIsPack = isPack;
         Search.Text = "";
         if (ReferenceEquals(Nav.SelectedItem, NavDiscover))
         {
             _mode = "import";
             ApplyModeLayout();
+            PlayPageTransition();
             _ = LoadAsync();
         }
         else
@@ -1084,13 +1375,22 @@ public sealed partial class MainWindow : Window
     private void SelectAll_Click(object sender, RoutedEventArgs e)
     {
         bool v = SelectAll.IsChecked == true;
-        foreach (var p in Items) p.IsSelected = v;
+        foreach (var p in Items) p.IsSelected = v && (p.IsManageable || _mode == "installed");
     }
 
-    private void CopyScript_Click(object sender, RoutedEventArgs e)
+    private void ClearSel_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var p in Items) p.IsSelected = false;
+    }
+
+    private async void CopyScript_Click(object sender, RoutedEventArgs e)
     {
         CopyText(string.Join("\r\n", Selected.Where(p => WingetService.IsSafeId(p.Id)).Select(p => WingetService.Command(p, _mode))));
-        SetStatus("Script copied to clipboard — paste it into any terminal", Green);
+        Notify("Script copied to the clipboard. Paste it into any terminal.", "Info");
+        CopyBtnIcon.Glyph = "";
+        Motion.Pop(CopyBtnIcon, 0.3f);
+        await Task.Delay(1400);
+        CopyBtnIcon.Glyph = "";
     }
 
     private static void CopyText(string text)
@@ -1115,7 +1415,12 @@ public sealed partial class MainWindow : Window
         pkgs = pkgs.Where(p => WingetService.IsSafeId(p.Id)).ToList();
         if (pkgs.Count == 0)
         {
-            SetStatus("Skipped: the package id looks unsafe or truncated", Red);
+            Notify("Skipped: the package id looks unsafe or truncated", "Error");
+            return;
+        }
+        if (WingetService.Demo)
+        {
+            Notify($"Demo mode: a terminal would open for {pkgs.Count} package(s) here", "Info");
             return;
         }
 
@@ -1173,15 +1478,16 @@ public sealed partial class MainWindow : Window
                 try { Launch("wt.exe", "powershell.exe " + psArgs); }
                 catch (Win32Exception ex) when (ex.NativeErrorCode != 1223) { Launch("powershell.exe", psArgs); }
             }
-            SetStatus($"Terminal opened for {pkgs.Count} package(s)", Green);
+            _listCache.Clear();   // the terminal is about to change what's installed
+            Notify($"Terminal opened for {pkgs.Count} package(s). Press Refresh when it's done.", "Info", "Refresh", () => _ = LoadAsync(force: true));
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            SetStatus("Cancelled (administrator prompt declined)", Amber);
+            Notify("Cancelled (administrator prompt declined)", "Warning");
         }
         catch (Exception ex)
         {
-            SetStatus("Could not open terminal: " + ex.Message, Red);
+            Notify("Could not open terminal: " + ex.Message, "Error");
         }
     }
 }

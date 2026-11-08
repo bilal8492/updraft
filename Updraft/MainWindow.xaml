@@ -9,330 +9,1038 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <NavigationView x:Name="Nav"
-                    PaneDisplayMode="Left"
-                    OpenPaneLength="220"
-                    IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="True"
-                    SelectionChanged="Nav_SelectionChanged">
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <NavigationView.AutoSuggestBox>
-            <AutoSuggestBox x:Name="Search" QueryIcon="Find" PlaceholderText="Filter updates"
-                            TextChanged="Search_TextChanged" QuerySubmitted="Search_QuerySubmitted" />
-        </NavigationView.AutoSuggestBox>
+        <!-- ===================== title bar ===================== -->
+        <TitleBar x:Name="AppTitleBar" Title="Updraft"
+                  IsBackButtonVisible="False" IsPaneToggleButtonVisible="True"
+                  BackRequested="AppTitleBar_BackRequested"
+                  PaneToggleRequested="AppTitleBar_PaneToggleRequested">
+            <TitleBar.IconSource>
+                <ImageIconSource ImageSource="ms-appx:///Assets/updraft.png" />
+            </TitleBar.IconSource>
+            <TitleBar.Content>
+                <AutoSuggestBox x:Name="Search" Width="440" VerticalAlignment="Center" QueryIcon="Find"
+                                PlaceholderText="Filter updates"
+                                AutomationProperties.Name="Search"
+                                TextChanged="Search_TextChanged" QuerySubmitted="Search_QuerySubmitted" />
+            </TitleBar.Content>
+            <TitleBar.RightHeader>
+                <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,4,0">
+                    <Border x:Name="DemoBadge" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,6,0"
+                            ToolTipService.ToolTip="Demo mode: sample data, nothing is installed">
+                        <local:Pill Text="DEMO" Tone="Violet" />
+                    </Border>
+                    <Button x:Name="ShortcutsBtn" Style="{StaticResource IconButtonStyle}" Click="Shortcuts_Click"
+                            AutomationProperties.Name="Keyboard shortcuts" ToolTipService.ToolTip="Keyboard shortcuts (F1)">
+                        <FontIcon Glyph="&#xE765;" FontSize="15" />
+                    </Button>
+                </StackPanel>
+            </TitleBar.RightHeader>
+        </TitleBar>
 
-        <NavigationView.MenuItems>
-            <NavigationViewItem x:Name="NavUp" Content="Upgrades" Tag="upgrade">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE898;" /></NavigationViewItem.Icon>
-                <NavigationViewItem.InfoBadge>
-                    <InfoBadge x:Name="UpBadge" Visibility="Collapsed" />
-                </NavigationViewItem.InfoBadge>
-            </NavigationViewItem>
-            <NavigationViewItem x:Name="NavInstalled" Content="Installed" Tag="installed">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Name="NavDiscover" Content="Discover" Tag="discover">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE721;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Name="NavHistory" Content="History" Tag="history">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE81C;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.MenuItems>
+        <NavigationView x:Name="Nav" Grid.Row="1"
+                        PaneDisplayMode="Auto"
+                        ExpandedModeThresholdWidth="1180"
+                        CompactModeThresholdWidth="0"
+                        OpenPaneLength="236"
+                        IsPaneToggleButtonVisible="False"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="True"
+                        IsTitleBarAutoPaddingEnabled="False"
+                        SelectionChanged="Nav_SelectionChanged">
 
-        <Grid Padding="0,0,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*" MinWidth="340" />
-                <ColumnDefinition x:Name="DetailCol" Width="2*" MinWidth="320" MaxWidth="460" />
-            </Grid.ColumnDefinitions>
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="NavUp" Content="Updates" Tag="upgrade">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE898;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.InfoBadge>
+                        <InfoBadge x:Name="UpBadge" Visibility="Collapsed" />
+                    </NavigationViewItem.InfoBadge>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="NavInstalled" Content="Installed" Tag="installed">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="NavDiscover" Content="Discover" Tag="discover">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE719;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="NavHistory" Content="History" Tag="history">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE81C;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
 
-            <!-- package list -->
-            <Grid Grid.Row="0" Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <Grid Margin="24,20,16,10">
+            <!-- winget status: replaces the old status bar dot -->
+            <NavigationView.PaneFooter>
+                <Grid x:Name="StatusArea" Padding="18,6,12,12" ColumnSpacing="11"
+                      ToolTipService.ToolTip="{x:Bind StatusText.Text, Mode=OneWay}">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+                    <Grid Width="10" Height="10" VerticalAlignment="Center">
+                        <Ellipse x:Name="DotPulse" Fill="#F59E0B" Visibility="Collapsed" />
+                        <Ellipse x:Name="Dot" Fill="#22C55E" />
+                    </Grid>
+                    <TextBlock x:Name="StatusText" Grid.Column="1" Text="Ready" Style="{StaticResource SecondaryTextStyle}"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </NavigationView.PaneFooter>
+
+            <Grid x:Name="ContentRoot">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="420" />
+                    <ColumnDefinition x:Name="DetailCol" Width="400" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ===================== main column ===================== -->
+                <Grid x:Name="MainCol" Padding="32,22,24,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <StackPanel>
-                        <TextBlock x:Name="PageTitle" Style="{StaticResource TitleTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="Subtitle" Opacity="0.65" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <StackPanel x:Name="ListTools" Grid.Row="1" Grid.ColumnSpan="4" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-                        <ComboBox x:Name="SortBox" Header="" MinWidth="150" SelectedIndex="0"
-                                  SelectionChanged="SortBox_SelectionChanged" ToolTipService.ToolTip="Sort by">
-                            <ComboBoxItem Content="Sort: Name A–Z" />
-                            <ComboBoxItem Content="Sort: Name Z–A" />
-                            <ComboBoxItem Content="Sort: Source" />
-                            <ComboBoxItem Content="Sort: Id" />
-                        </ComboBox>
-                        <ComboBox x:Name="SourceBox" MinWidth="130" SelectedIndex="0"
-                                  SelectionChanged="SourceBox_SelectionChanged" ToolTipService.ToolTip="Filter by source">
-                            <ComboBoxItem Content="All sources" />
-                        </ComboBox>
-                        <CheckBox x:Name="ShowSkippedChk" Content="Show skipped" MinWidth="0" Click="ShowSkipped_Click" />
-                    </StackPanel>
-                    <ProgressRing x:Name="Ring" Grid.Column="1" Width="22" Height="22" IsActive="False" Margin="0,0,12,0" VerticalAlignment="Center" />
-                    <DropDownButton x:Name="BackupBtn" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,8,0"
-                                    AutomationProperties.Name="Backup and restore"
-                                    ToolTipService.ToolTip="Backup and restore: save your app list, or reinstall apps from a saved list">
-                        <FontIcon Glyph="&#xE8F1;" FontSize="14" />
-                        <DropDownButton.Flyout>
-                            <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                <MenuFlyoutItem Text="Export installed apps…" Click="Export_Click">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Restore from file…" Click="Import_Click">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B5;" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                            </MenuFlyout>
-                        </DropDownButton.Flyout>
-                    </DropDownButton>
-                    <Button x:Name="RefreshBtn" Grid.Column="3" Click="Refresh_Click" VerticalAlignment="Center"
-                            ToolTipService.ToolTip="Rescan (F5)">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                            <TextBlock Text="Refresh" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="ClearHistoryBtn" Grid.Column="3" Click="ClearHistory_Click" VerticalAlignment="Center"
-                            Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
-                            <TextBlock Text="Clear history" />
-                        </StackPanel>
-                    </Button>
-                </Grid>
 
-                <InfoBar x:Name="WingetBar" Grid.Row="1" Margin="24,0,16,8" IsOpen="False" IsClosable="False"
-                         Severity="Error" Title="winget isn't available"
-                         Message="Updraft needs the Windows Package Manager (winget), which comes with Microsoft's App Installer.">
-                    <InfoBar.ActionButton>
-                        <HyperlinkButton Content="Get App Installer" NavigateUri="ms-windows-store://pdp/?productid=9NBLGGH4NNS1" />
-                    </InfoBar.ActionButton>
-                </InfoBar>
+                    <!-- page header -->
+                    <Grid x:Name="Header" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel x:Name="HeaderText" VerticalAlignment="Center">
+                            <TextBlock x:Name="PageTitle" Style="{StaticResource PageTitleStyle}" />
+                            <TextBlock x:Name="Subtitle" Style="{StaticResource PageSubtitleStyle}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <DropDownButton x:Name="BackupBtn" AutomationProperties.Name="Backup and restore"
+                                            ToolTipService.ToolTip="Save your app list, or reinstall apps from a saved list">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8F1;" FontSize="14" />
+                                    <TextBlock Text="Backup" />
+                                </StackPanel>
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                        <MenuFlyoutItem Text="Export installed apps…" Click="Export_Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Restore from file…" Click="Import_Click">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                            <Button x:Name="RefreshBtn" Click="Refresh_Click" ToolTipService.ToolTip="Rescan (F5)">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon x:Name="RefreshIcon" Glyph="&#xE72C;" FontSize="14" />
+                                    <TextBlock Text="Refresh" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ClearHistoryBtn" Click="ClearHistory_Click" Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                    <TextBlock Text="Clear history" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
 
-                <ListView x:Name="HistList" Grid.Row="2" ItemsSource="{x:Bind HistoryItems}" Visibility="Collapsed"
-                          SelectionMode="None" Padding="12,0,8,0">
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="local:HistoryEntry">
-                            <Grid Padding="0,6" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{x:Bind Summary}" Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis"
-                                               IsTextSelectionEnabled="True" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind ResultText}" Foreground="{x:Bind ResultBrush}" FontSize="12"
-                                               HorizontalAlignment="Right" />
-                                    <TextBlock Text="{x:Bind WhenText}" Opacity="0.65" FontSize="11" HorizontalAlignment="Right" />
-                                </StackPanel>
+                    <!-- hero card (Updates page) -->
+                    <Grid x:Name="Hero" Grid.Row="1" Margin="0,18,0,0" Height="136" CornerRadius="14"
+                          Background="{ThemeResource BrandGradientBrush}" Visibility="Collapsed">
+                        <Ellipse Width="420" Height="420" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                 Margin="0,-210,-120,0" IsHitTestVisible="False">
+                            <Ellipse.Fill>
+                                <RadialGradientBrush>
+                                    <GradientStop Offset="0" Color="#40FFFFFF" />
+                                    <GradientStop Offset="1" Color="#00FFFFFF" />
+                                </RadialGradientBrush>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <Ellipse Width="300" Height="300" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                 Margin="-140,0,0,-200" IsHitTestVisible="False">
+                            <Ellipse.Fill>
+                                <RadialGradientBrush>
+                                    <GradientStop Offset="0" Color="#2E8B5CF6" />
+                                    <GradientStop Offset="1" Color="#008B5CF6" />
+                                </RadialGradientBrush>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <local:RisingChevrons x:Name="HeroChevrons" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                              Margin="0,0,200,0" ChevronWidth="74" Period="2.6" Opacity="0.2"
+                                              ChevronBrush="White" />
+
+                        <Grid Padding="26,18,22,18" ColumnSpacing="18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid x:Name="HeroBadge" Width="52" Height="52" VerticalAlignment="Center" Visibility="Collapsed">
+                                <Ellipse Fill="#33FFFFFF" />
+                                <FontIcon x:Name="HeroGlyph" Glyph="&#xE73E;" FontSize="24" Foreground="{ThemeResource HeroForegroundBrush}" />
                             </Grid>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <TextBlock x:Name="HeroCount" Text="0" FontSize="48" FontWeight="SemiBold"
+                                               FontFamily="{StaticResource DisplayFontFamily}" LineHeight="52"
+                                               Foreground="{ThemeResource HeroForegroundBrush}" />
+                                    <TextBlock x:Name="HeroTitle" FontSize="20" FontWeight="SemiBold"
+                                               FontFamily="{StaticResource DisplayFontFamily}"
+                                               Foreground="{ThemeResource HeroForegroundBrush}"
+                                               VerticalAlignment="Bottom" Margin="0,0,0,9" TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock x:Name="HeroMeta" FontSize="13" Foreground="{ThemeResource HeroSecondaryForegroundBrush}"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxLines="2" />
+                                <ProgressBar x:Name="HeroProgress" Margin="0,10,0,0" MaxWidth="380" HorizontalAlignment="Left"
+                                             Width="380" Maximum="100" Visibility="Collapsed"
+                                             Foreground="{ThemeResource HeroForegroundBrush}" Background="#33FFFFFF" />
+                            </StackPanel>
+                            <Button x:Name="UpdateAllBtn" Grid.Column="2" Style="{StaticResource HeroButtonStyle}"
+                                    VerticalAlignment="Center" Click="UpdateAll_Click"
+                                    ToolTipService.ToolTip="Update every app in this list (skipped apps excluded)">
+                                <StackPanel Orientation="Horizontal" Spacing="9">
+                                    <FontIcon Glyph="&#xE898;" FontSize="14" />
+                                    <TextBlock x:Name="UpdateAllText" Text="Update all" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Grid>
 
-                <ListView x:Name="PkgList" Grid.Row="2" ItemsSource="{x:Bind Items}"
-                          SelectionMode="Single" SelectionChanged="PkgList_SelectionChanged"
-                          Padding="12,0,8,0">
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="local:Pkg">
-                            <Grid Padding="0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}" MinWidth="0" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <Grid ColumnSpacing="8">
+                    <InfoBar x:Name="WingetBar" Grid.Row="2" Margin="0,14,0,0" IsOpen="False" IsClosable="False"
+                             Severity="Error" Title="winget isn't available"
+                             Message="Updraft needs the Windows Package Manager (winget), which comes with Microsoft's App Installer.">
+                        <InfoBar.ActionButton>
+                            <HyperlinkButton Content="Get App Installer" NavigateUri="ms-windows-store://pdp/?productid=9NBLGGH4NNS1" />
+                        </InfoBar.ActionButton>
+                    </InfoBar>
+
+                    <!-- list toolbar -->
+                    <Grid x:Name="ListTools" Grid.Row="3" Margin="0,14,0,4" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox x:Name="SelectAll" Content="Select all" Click="SelectAll_Click" MinWidth="0"
+                                  Margin="11,0,4,0" VerticalAlignment="Center" />
+                        <SelectorBar x:Name="SourceBar" Grid.Column="1" SelectionChanged="SourceBar_SelectionChanged"
+                                     VerticalAlignment="Center" />
+                        <DropDownButton x:Name="SortBtn" Grid.Column="2" VerticalAlignment="Center"
+                                        AutomationProperties.Name="Sort and view" ToolTipService.ToolTip="Sort and view options">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8CB;" FontSize="13" />
+                                <TextBlock x:Name="SortText" Text="Name" />
+                            </StackPanel>
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <RadioMenuFlyoutItem x:Name="SortName" Text="Name (A–Z)" GroupName="sort" IsChecked="True" Tag="0" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem Text="Name (Z–A)" GroupName="sort" Tag="1" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem Text="Source" GroupName="sort" Tag="2" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem Text="Package id" GroupName="sort" Tag="3" Click="Sort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortKind" Text="Update type (major first)" GroupName="sort" Tag="4" Click="Sort_Click" />
+                                    <MenuFlyoutSeparator x:Name="ShowSkippedSep" />
+                                    <ToggleMenuFlyoutItem x:Name="ShowSkippedItem" Text="Show skipped updates" Click="ShowSkipped_Click">
+                                        <ToggleMenuFlyoutItem.Icon><FontIcon Glyph="&#xED1A;" /></ToggleMenuFlyoutItem.Icon>
+                                    </ToggleMenuFlyoutItem>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </Grid>
+
+                    <!-- body -->
+                    <Grid x:Name="Body" Grid.Row="4" Margin="-4,0,0,0">
+
+                        <ListView x:Name="PkgList" ItemsSource="{x:Bind Items}"
+                                  SelectionMode="Single" SelectionChanged="PkgList_SelectionChanged"
+                                  ItemContainerStyle="{StaticResource PkgItemStyle}"
+                                  ContainerContentChanging="PkgList_ContainerContentChanging"
+                                  ContextRequested="PkgList_ContextRequested"
+                                  Padding="0,2,0,110">
+                            <ListView.ItemContainerTransitions>
+                                <TransitionCollection>
+                                    <RepositionThemeTransition IsStaggeringEnabled="False" />
+                                </TransitionCollection>
+                            </ListView.ItemContainerTransitions>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="local:Pkg">
+                                    <Grid x:Name="RowRoot" ColumnSpacing="12" Padding="0,9" Background="Transparent"
+                                          PointerEntered="Row_PointerEntered" PointerExited="Row_PointerExited">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}" MinWidth="0" Width="28"
+                                                  VerticalAlignment="Center" AutomationProperties.Name="{x:Bind Name}" />
+                                        <local:PkgAvatar Grid.Column="1" Pkg="{x:Bind}" TileSize="38" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="1">
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                           ToolTipService.ToolTip="{x:Bind Name}" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                    <local:Pill Text="Pinned" Tone="Warning" Visibility="{x:Bind PinnedVisibility, Mode=OneWay}" />
+                                                    <local:Pill Text="{x:Bind SkipLabel, Mode=OneWay}" Visibility="{x:Bind SkippedVisibility, Mode=OneWay}" />
+                                                    <local:Pill Text="Installed" Tone="Success" Visibility="{x:Bind InstalledVisibility, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="{x:Bind Id}" Style="{StaticResource MonoCaptionStyle}" />
+                                            <ProgressBar Margin="0,5,24,0" Height="3" MinHeight="3"
+                                                         Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
+                                                         IsIndeterminate="{x:Bind Indeterminate, Mode=OneWay}"
+                                                         Value="{x:Bind Progress, Mode=OneWay}" Maximum="100" />
+                                            <local:Pill Margin="0,4,0,0" HorizontalAlignment="Left" FontWeight="Normal"
+                                                        Text="{x:Bind RunStatus, Mode=OneWay}" Tone="{x:Bind StatusTone, Mode=OneWay}"
+                                                        Visibility="{x:Bind StatusVisibility, Mode=OneWay}" MaxWidth="520" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right">
+                                                <TextBlock Text="{x:Bind Version}" Style="{StaticResource MonoCaptionStyle}" VerticalAlignment="Center" />
+                                                <FontIcon Glyph="&#xE72A;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                          Visibility="{x:Bind UpdateArrowVisibility, Mode=OneWay}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{x:Bind TargetText, Mode=OneWay}" FontFamily="{StaticResource MonoFontFamily}"
+                                                           FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                           Visibility="{x:Bind UpdateArrowVisibility, Mode=OneWay}" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                                <local:Pill Text="{x:Bind KindLabel}" Tone="{x:Bind KindTone}" Visibility="{x:Bind KindVisibility}" />
+                                                <local:Pill Text="{x:Bind SourceLabel}" Tone="{x:Bind SourceTone}" Visibility="{x:Bind SourceVisibility}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button x:Name="QuickBtn" Grid.Column="4" Style="{StaticResource IconButtonStyle}" Opacity="0"
+                                                IsTabStop="False" VerticalAlignment="Center" Click="QuickAction_Click"
+                                                Visibility="{x:Bind QuickActionVisibility, Mode=OneWay}"
+                                                ToolTipService.ToolTip="{x:Bind ActionLabel}" AutomationProperties.Name="{x:Bind ActionLabel}">
+                                            <Button.OpacityTransition>
+                                                <ScalarTransition Duration="0:0:0.15" />
+                                            </Button.OpacityTransition>
+                                            <FontIcon Glyph="{x:Bind ActionGlyph}" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <ListView x:Name="HistList" Visibility="Collapsed" SelectionMode="None"
+                                  ItemContainerStyle="{StaticResource HistoryItemStyle}" Padding="0,0,0,24">
+                            <ListView.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate x:DataType="local:HistoryGroup">
+                                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+                                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource SectionHeaderStyle}" />
+                                                <TextBlock Text="{x:Bind Summary}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListView.GroupStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="local:HistoryEntry">
+                                    <Grid ColumnSpacing="14" Padding="0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                                   ToolTipService.ToolTip="{x:Bind Name}" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
-                                                    Visibility="{x:Bind PinnedVisibility, Mode=OneWay}"
-                                                    BorderBrush="#F59E0B">
-                                                <TextBlock Text="pinned" FontSize="10" Foreground="#F59E0B" />
+                                        <Grid Width="40" Height="40">
+                                            <Border Width="36" Height="36" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Background="{x:Bind AvatarBrush}">
+                                                <TextBlock Text="{x:Bind Initials}" Foreground="White" FontWeight="SemiBold" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Border>
-                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
-                                                    Visibility="{x:Bind SkippedVisibility, Mode=OneWay}"
-                                                    BorderBrush="#9D9D9D">
-                                                <TextBlock Text="{x:Bind SkipLabel, Mode=OneWay}" FontSize="10" Foreground="#9D9D9D" />
-                                            </Border>
-                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
-                                                    Visibility="{x:Bind InstalledVisibility, Mode=OneWay}"
-                                                    BorderBrush="#22C55E">
-                                                <TextBlock Text="installed" FontSize="10" Foreground="#22C55E" />
-                                            </Border>
-                                            <Border CornerRadius="8" Padding="6,0" BorderThickness="1"
-                                                    Visibility="{x:Bind SourceVisibility}"
-                                                    BorderBrush="{x:Bind SourceBrush}">
-                                                <TextBlock Text="{x:Bind SourceLabel}" FontSize="10"
-                                                           Foreground="{x:Bind SourceBrush}" />
-                                            </Border>
+                                            <Grid Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                                <Ellipse Fill="{ThemeResource SolidBackgroundFillColorBaseBrush}" />
+                                                <Ellipse Margin="2" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                                <FontIcon Glyph="{x:Bind ActionGlyph}" FontSize="8" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                            </Grid>
+                                        </Grid>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Style="{StaticResource MonoCaptionStyle}" IsTextSelectionEnabled="True">
+                                                <Run Text="{x:Bind Action}" /><Run Text="  ·  " /><Run Text="{x:Bind Id}" /><Run Text="  " /><Run Text="{x:Bind VersionText}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="3">
+                                            <local:Pill Text="{x:Bind ResultText}" Tone="{x:Bind ResultTone}" HorizontalAlignment="Right" />
+                                            <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource SecondaryTextStyle}" HorizontalAlignment="Right" />
                                         </StackPanel>
                                     </Grid>
-                                    <TextBlock Opacity="0.65" FontSize="12" TextTrimming="CharacterEllipsis">
-                                        <Run Text="{x:Bind Id}" /><Run Text="   ·   " /><Run Text="{x:Bind VersionText}" />
-                                    </TextBlock>
-                                        <ProgressBar Margin="0,4,0,0" Height="3"
-                                                 Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
-                                                 IsIndeterminate="{x:Bind Indeterminate, Mode=OneWay}"
-                                                 Value="{x:Bind Progress, Mode=OneWay}" Maximum="100" />
-                                    <TextBlock FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"
-                                               Visibility="{x:Bind StatusVisibility, Mode=OneWay}"
-                                               Text="{x:Bind RunStatus, Mode=OneWay}"
-                                               Foreground="{x:Bind StatusBrush, Mode=OneWay}" />
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- loading placeholders -->
+                        <ItemsControl x:Name="Skeleton" Visibility="Collapsed" IsHitTestVisible="False" Margin="4,2,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="66" Padding="10,0,12,0" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="18" Height="18" CornerRadius="4" Background="{ThemeResource SkeletonBrush}" HorizontalAlignment="Left" />
+                                        <Border Grid.Column="1" Width="38" Height="38" CornerRadius="11" Background="{ThemeResource SkeletonStrongBrush}" />
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="8">
+                                            <Border Height="12" Width="{Binding}" HorizontalAlignment="Left" CornerRadius="6" Background="{ThemeResource SkeletonStrongBrush}" />
+                                            <Border Height="10" Width="130" HorizontalAlignment="Left" CornerRadius="5" Background="{ThemeResource SkeletonBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="8" HorizontalAlignment="Right">
+                                            <Border Height="10" Width="110" HorizontalAlignment="Right" CornerRadius="5" Background="{ThemeResource SkeletonBrush}" />
+                                            <Border Height="14" Width="52" HorizontalAlignment="Right" CornerRadius="7" Background="{ThemeResource SkeletonBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- empty / result states -->
+                        <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                                    MaxWidth="400" Margin="0,0,0,70" Visibility="Collapsed">
+                            <Grid x:Name="EmptyArt" Width="120" Height="120" HorizontalAlignment="Center" Margin="0,0,0,12">
+                                <Ellipse x:Name="EmptyHalo" Fill="{ThemeResource BrandSoftBrush}" />
+                                <Ellipse x:Name="EmptyDisc" Width="80" Height="80" Fill="{ThemeResource BrandGradientBrush}" Visibility="Collapsed" />
+                                <FontIcon x:Name="EmptyGlyph" FontSize="42" Foreground="{ThemeResource BrandTextBrush}" />
+                                <Path x:Name="EmptyCheck" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                      Data="M 43,61 L 54,72 L 77,48" Stroke="White" StrokeThickness="6"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      StrokeDashArray="9 9" StrokeDashOffset="0" />
+                            </Grid>
+                            <TextBlock x:Name="EmptyTitle" Style="{StaticResource SubtitleTextBlockStyle}"
+                                       FontFamily="{StaticResource DisplayFontFamily}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock x:Name="EmptyBody" Style="{StaticResource BodyTextBlockStyle}" HorizontalAlignment="Center"
+                                       TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Button x:Name="EmptyAction" HorizontalAlignment="Center" Margin="0,12,0,0" Visibility="Collapsed"
+                                    Click="EmptyAction_Click" />
+                        </StackPanel>
+
+                        <!-- Discover start page -->
+                        <ScrollViewer x:Name="DiscoverHome" Visibility="Collapsed" Margin="4,0,0,0">
+                            <StackPanel x:Name="DiscoverContent" Spacing="30" Padding="0,10,4,32">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Popular searches" Style="{StaticResource SectionHeaderStyle}" />
+                                    <local:WrapPanel x:Name="PopularPanel" HorizontalSpacing="8" VerticalSpacing="8" />
                                 </StackPanel>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Starter packs" Style="{StaticResource SectionHeaderStyle}" />
+                                    <TextBlock Text="Set up a new PC in one go. Apps you already have are left alone."
+                                               Style="{StaticResource SecondaryTextStyle}" />
+                                    <GridView x:Name="PackGrid" ItemsSource="{x:Bind Packs}" Margin="-4,10,0,0"
+                                              SelectionMode="None" IsItemClickEnabled="True" ItemClick="PackGrid_ItemClick"
+                                              ContainerContentChanging="PackGrid_ContainerContentChanging">
+                                        <GridView.ItemTemplate>
+                                            <DataTemplate x:DataType="local:StarterPack">
+                                                <Border Width="286" Height="176" Style="{StaticResource CardBorderStyle}" CornerRadius="12"
+                                                        Padding="18,16" Loaded="PackCard_Loaded">
+                                                    <Grid RowSpacing="6">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid Margin="0,0,0,6">
+                                                            <Border Width="42" Height="42" CornerRadius="12" HorizontalAlignment="Left"
+                                                                    Background="{x:Bind IconBrush}">
+                                                                <FontIcon Glyph="{x:Bind Glyph}" FontSize="19" Foreground="White" />
+                                                            </Border>
+                                                            <local:Pill Text="{x:Bind CountText}" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                                        </Grid>
+                                                        <TextBlock Grid.Row="1" Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="15" />
+                                                        <TextBlock Grid.Row="2" Text="{x:Bind Blurb}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" MaxLines="2" />
+                                                        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="4">
+                                                            <ItemsControl ItemsSource="{x:Bind Preview}" IsTabStop="False">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <StackPanel Orientation="Horizontal" Spacing="4" />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="local:StarterApp">
+                                                                        <Border Width="24" Height="24" CornerRadius="7" Background="{x:Bind AvatarBrush}"
+                                                                                ToolTipService.ToolTip="{x:Bind Name}">
+                                                                            <TextBlock Text="{x:Bind Initials}" Foreground="White" FontSize="9" FontWeight="SemiBold"
+                                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock Text="{x:Bind MoreText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridView.ItemTemplate>
+                                    </GridView>
+                                </StackPanel>
+
+                                <Border Style="{StaticResource CardBorderStyle}" Padding="18,14" MaxWidth="896" HorizontalAlignment="Left">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid Width="40" Height="40">
+                                            <Ellipse Fill="{ThemeResource BrandSoftBrush}" />
+                                            <FontIcon Glyph="&#xE8B5;" FontSize="17" Foreground="{ThemeResource BrandTextBrush}" />
+                                        </Grid>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Moving to a new PC?" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            <TextBlock Text="Restore the apps from a list you exported with Backup. Updraft skips the ones you already have."
+                                                       Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="Restore from file…" Click="Import_Click" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+
+                <!-- ===================== detail pane ===================== -->
+                <Border x:Name="DetailPane" Grid.Column="1" Margin="0,22,22,22" CornerRadius="12"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <Grid>
+                        <StackPanel x:Name="DEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="250">
+                            <Grid Width="76" Height="76" HorizontalAlignment="Center" Margin="0,0,0,6">
+                                <Ellipse Fill="{ThemeResource BrandSoftBrush}" />
+                                <local:RisingChevrons x:Name="DEmptyChevrons" ChevronWidth="30" ChevronBrush="{ThemeResource BrandTextBrush}" Period="2.4" />
                             </Grid>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
+                            <TextBlock Text="Pick an app" Style="{StaticResource BodyStrongTextBlockStyle}" HorizontalAlignment="Center" />
+                            <TextBlock Text="Select a row to see release notes, details and the exact winget command. Right-click any row for quick actions."
+                                       Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
 
-                <TextBlock x:Name="EmptyMsg" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Opacity="0.6" TextAlignment="Center" />
-            </Grid>
+                        <ScrollViewer x:Name="DPanel" Visibility="Collapsed">
+                            <StackPanel x:Name="DContent" Padding="22,22,22,26" Spacing="18">
+                                <Grid ColumnSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <local:PkgAvatar x:Name="DAvatar" TileSize="58" VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock x:Name="DName" Style="{StaticResource SubtitleTextBlockStyle}"
+                                                   FontFamily="{StaticResource DisplayFontFamily}" TextWrapping="Wrap" MaxLines="2" />
+                                        <TextBlock x:Name="DId" Style="{StaticResource MonoCaptionStyle}" IsTextSelectionEnabled="True" />
+                                        <local:WrapPanel x:Name="DPills" Margin="0,7,0,0" HorizontalSpacing="4" VerticalSpacing="4">
+                                            <local:Pill x:Name="DSourcePill" />
+                                            <local:Pill x:Name="DKindPill" />
+                                            <local:Pill x:Name="DPinnedPill" Text="Pinned" Tone="Warning" />
+                                            <local:Pill x:Name="DSkippedPill" />
+                                            <local:Pill x:Name="DInstalledPill" Text="Installed" Tone="Success" />
+                                        </local:WrapPanel>
+                                    </StackPanel>
+                                </Grid>
 
-            <!-- detail pane -->
-            <Border x:Name="DetailPane" Grid.Row="0" Grid.Column="1" Margin="0,16,16,8" Padding="20"
-                    CornerRadius="8"
-                    Background="{ThemeResource LayerFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <Grid>
-                    <TextBlock x:Name="DEmpty" Text="Select a package to see details" Opacity="0.6"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <ScrollViewer x:Name="DPanel" Visibility="Collapsed">
-                        <StackPanel Spacing="4">
-                            <TextBlock x:Name="DName" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
-                            <TextBlock x:Name="DId" Opacity="0.65" TextWrapping="Wrap" />
-                            <TextBlock x:Name="DDesc" TextWrapping="Wrap" Margin="0,10,0,10" />
+                                <Grid x:Name="DVersionCard" CornerRadius="10" Padding="14,10,14,11" ColumnSpacing="10"
+                                      Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock x:Name="DFromLabel" Text="INSTALLED" Style="{StaticResource EyebrowStyle}" />
+                                        <TextBlock x:Name="DFrom" FontFamily="{StaticResource MonoFontFamily}" FontSize="15"
+                                                   TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
+                                    </StackPanel>
+                                    <FontIcon x:Name="DArrow" Grid.Column="1" Glyph="&#xE72A;" FontSize="14"
+                                              Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                        <TextBlock x:Name="DToLabel" Text="LATEST" Style="{StaticResource EyebrowStyle}" HorizontalAlignment="Right" />
+                                        <TextBlock x:Name="DTo" FontFamily="{StaticResource MonoFontFamily}" FontSize="15" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" IsTextSelectionEnabled="True" />
+                                    </StackPanel>
+                                </Grid>
 
-                            <TextBlock Text="Details" Opacity="0.65" FontSize="12" Margin="0,4,0,4" />
-                            <Grid RowSpacing="6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Installed" />
-                                <TextBlock x:Name="DInst" Grid.Column="1" FontWeight="SemiBold" />
-                                <TextBlock Text="Latest version" Grid.Row="1" />
-                                <TextBlock x:Name="DLatest" Grid.Row="1" Grid.Column="1" FontWeight="SemiBold" />
-                                <TextBlock Text="Publisher" Grid.Row="2" />
-                                <TextBlock x:Name="DPub" Grid.Row="2" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Licence" Grid.Row="3" />
-                                <TextBlock x:Name="DLic" Grid.Row="3" Grid.Column="1" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Homepage" Grid.Row="4" />
-                                <HyperlinkButton x:Name="DHome" Grid.Row="4" Grid.Column="1" Padding="0" />
-                            </Grid>
-
-                            <TextBlock Text="Terminal command" Opacity="0.65" FontSize="12" Margin="0,16,0,4" />
-                            <Border CornerRadius="6" Padding="12" Background="#1E1F24">
-                                <Grid>
+                                <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock x:Name="DCmd" FontFamily="Cascadia Mono, Consolas" FontSize="12"
-                                               Foreground="#D7DAE0" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                                    <Button x:Name="DCopy" Grid.Column="1" Content="Copy" Click="DCopy_Click"
-                                            VerticalAlignment="Top" Margin="10,0,0,0" />
+                                    <Button x:Name="DAction" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch"
+                                            Padding="12,8" Click="DAction_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon x:Name="DActionIcon" Glyph="&#xE898;" FontSize="14" />
+                                            <TextBlock x:Name="DActionText" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Button>
+                                    <DropDownButton x:Name="DMore" Grid.Column="1" Padding="10,8" AutomationProperties.Name="More actions"
+                                                    ToolTipService.ToolTip="More actions">
+                                        <FontIcon Glyph="&#xE712;" FontSize="14" />
+                                        <DropDownButton.Flyout>
+                                            <MenuFlyout x:Name="DMoreMenu" Placement="BottomEdgeAlignedRight" Opening="DMoreMenu_Opening" />
+                                        </DropDownButton.Flyout>
+                                    </DropDownButton>
                                 </Grid>
-                            </Border>
 
-                            <Button x:Name="DAction" Style="{StaticResource AccentButtonStyle}" Margin="0,14,0,0"
-                                    Click="DAction_Click" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                                <DropDownButton x:Name="DSkipMenu" Content="Skip" Visibility="Collapsed"
-                                                ToolTipService.ToolTip="Hide this update from the list. Stored by Updraft only.">
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout Placement="Bottom">
-                                            <MenuFlyoutItem x:Name="DSkipVersion" Text="Skip this version" Click="DSkipVersion_Click" />
-                                            <MenuFlyoutItem Text="Always skip this app" Click="DSkipAlways_Click" />
-                                        </MenuFlyout>
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-                                <Button x:Name="DSkip" Content="Stop skipping" Click="DSkip_Click" Visibility="Collapsed" />
-                                <Button x:Name="DPin" Click="DPin_Click"
-                                        ToolTipService.ToolTip="winget pin: keep this app at its current version" />
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="About" Style="{StaticResource SectionHeaderStyle}" />
+                                    <TextBlock x:Name="DDesc" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="DNotesSection" Spacing="8" Visibility="Collapsed">
+                                    <Grid>
+                                        <TextBlock Text="What's new" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock x:Name="DNotesDate" Style="{StaticResource SecondaryTextStyle}" HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                    <Border CornerRadius="10" Padding="14,12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                        <TextBlock x:Name="DNotes" TextWrapping="Wrap" MaxLines="7" IsTextSelectionEnabled="True"
+                                                   Style="{StaticResource CaptionTextBlockStyle}" FontSize="12.5" LineHeight="19" />
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <HyperlinkButton x:Name="DNotesMore" Content="Show more" Padding="0" Click="DNotesMore_Click" />
+                                        <HyperlinkButton x:Name="DNotesLink" Padding="0">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="Full release notes" />
+                                                <FontIcon Glyph="&#xE8A7;" FontSize="11" />
+                                            </StackPanel>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Details" Style="{StaticResource SectionHeaderStyle}" />
+                                    <Grid x:Name="DFacts" RowSpacing="9" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="96" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Publisher" Style="{StaticResource SecondaryTextStyle}" FontSize="13" />
+                                        <TextBlock x:Name="DPub" Grid.Column="1" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                        <TextBlock x:Name="DHomeLabel" Grid.Row="1" Text="Homepage" Style="{StaticResource SecondaryTextStyle}" FontSize="13" />
+                                        <HyperlinkButton x:Name="DHome" Grid.Row="1" Grid.Column="1" Padding="0" Margin="0,-2,0,0" />
+                                        <TextBlock Grid.Row="2" Text="License" Style="{StaticResource SecondaryTextStyle}" FontSize="13" />
+                                        <TextBlock x:Name="DLic" Grid.Row="2" Grid.Column="1" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                        <TextBlock x:Name="DInstallerLabel" Grid.Row="3" Text="Installer" Style="{StaticResource SecondaryTextStyle}" FontSize="13" />
+                                        <TextBlock x:Name="DInstaller" Grid.Row="3" Grid.Column="1" />
+                                        <TextBlock x:Name="DSourceLabel" Grid.Row="4" Text="Source" Style="{StaticResource SecondaryTextStyle}" FontSize="13" />
+                                        <TextBlock x:Name="DSource" Grid.Row="4" Grid.Column="1" />
+                                        <TextBlock x:Name="DTagsLabel" Grid.Row="5" Text="Tags" Style="{StaticResource SecondaryTextStyle}" FontSize="13" />
+                                        <local:WrapPanel x:Name="DTags" Grid.Row="5" Grid.Column="1" HorizontalSpacing="4" VerticalSpacing="4" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Command" Style="{StaticResource SectionHeaderStyle}" />
+                                    <Border Style="{StaticResource TerminalBorderStyle}" Padding="14,10,6,10">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="&gt;" FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                                                       Foreground="{ThemeResource TerminalPromptBrush}" Margin="0,2,0,0" />
+                                            <TextBlock x:Name="DCmd" Grid.Column="1" FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                                                       Foreground="{ThemeResource TerminalForegroundBrush}" TextWrapping="Wrap"
+                                                       IsTextSelectionEnabled="True" Margin="0,2,0,0" LineHeight="18" />
+                                            <Button x:Name="DCopy" Grid.Column="2" Style="{StaticResource IconButtonStyle}" VerticalAlignment="Top"
+                                                    Click="DCopy_Click" Foreground="{ThemeResource TerminalForegroundBrush}"
+                                                    AutomationProperties.Name="Copy command" ToolTipService.ToolTip="Copy command">
+                                                <FontIcon x:Name="DCopyIcon" Glyph="&#xE8C8;" FontSize="13" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel x:Name="DLogPanel" Visibility="Collapsed" Spacing="8">
+                                    <Grid>
+                                        <TextBlock Text="Output" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                        <Button x:Name="DCopyLog" HorizontalAlignment="Right" Style="{StaticResource SubtleButtonStyle}"
+                                                Click="DCopyLog_Click" Padding="8,4">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE8C8;" FontSize="12" />
+                                                <TextBlock Text="Copy log" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                    <Border Style="{StaticResource TerminalBorderStyle}">
+                                        <ScrollViewer x:Name="DLogScroll" MaxHeight="280">
+                                            <TextBlock x:Name="DLog" FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                                                       Foreground="{ThemeResource TerminalForegroundBrush}" TextWrapping="Wrap"
+                                                       IsTextSelectionEnabled="True" LineHeight="17" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
                             </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
 
-                            <StackPanel x:Name="DLogPanel" Visibility="Collapsed" Margin="0,16,0,0">
-                                <Grid>
-                                    <TextBlock Text="Output" Opacity="0.65" FontSize="12" VerticalAlignment="Center" />
-                                    <Button x:Name="DCopyLog" Content="Copy log" HorizontalAlignment="Right" Click="DCopyLog_Click" />
+                <!-- ===================== settings page ===================== -->
+                <ScrollViewer x:Name="SettingsView" Grid.ColumnSpan="2" Visibility="Collapsed">
+                    <StackPanel x:Name="SettingsContent" MaxWidth="900" Padding="32,22,32,48" Spacing="4" HorizontalAlignment="Stretch">
+                        <TextBlock Text="Settings" Style="{StaticResource PageTitleStyle}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="Appearance" Style="{StaticResource SectionHeaderStyle}" Margin="2,10,0,8" />
+                        <Grid Style="{StaticResource SettingsCardStyle}" RowSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <FontIcon Glyph="&#xE790;" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Theme" />
+                                <TextBlock Text="Follow Windows, or always use light or dark." Style="{StaticResource SecondaryTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="12" Margin="0,0,0,4">
+                                <Button x:Name="ThemeSystem" Tag="system" Click="ThemeCard_Click" Padding="0" Background="Transparent" BorderThickness="0"
+                                        AutomationProperties.Name="Use system setting">
+                                    <StackPanel Spacing="6">
+                                        <Grid Width="132" Height="84">
+                                            <Border x:Name="ThemeSystemRing" CornerRadius="10" BorderThickness="2" Opacity="0"
+                                                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}">
+                                                <Border.OpacityTransition><ScalarTransition Duration="0:0:0.15" /></Border.OpacityTransition>
+                                            </Border>
+                                            <Grid Margin="4" CornerRadius="7">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Background="#F3F3F3" />
+                                                <Border Grid.Column="1" Background="#202020" />
+                                                <Border Grid.ColumnSpan="2" Margin="10,12,10,0" Height="10" CornerRadius="3" VerticalAlignment="Top" Background="#3B82ED" />
+                                                <Border Margin="10,30,4,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#1A000000" />
+                                                <Border Grid.Column="1" Margin="4,30,10,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#26FFFFFF" />
+                                                <Border Margin="10,44,4,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#1A000000" />
+                                                <Border Grid.Column="1" Margin="4,44,10,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#26FFFFFF" />
+                                            </Grid>
+                                        </Grid>
+                                        <TextBlock Text="System" HorizontalAlignment="Center" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ThemeLight" Tag="light" Click="ThemeCard_Click" Padding="0" Background="Transparent" BorderThickness="0"
+                                        AutomationProperties.Name="Light">
+                                    <StackPanel Spacing="6">
+                                        <Grid Width="132" Height="84">
+                                            <Border x:Name="ThemeLightRing" CornerRadius="10" BorderThickness="2" Opacity="0"
+                                                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}">
+                                                <Border.OpacityTransition><ScalarTransition Duration="0:0:0.15" /></Border.OpacityTransition>
+                                            </Border>
+                                            <Grid Margin="4" CornerRadius="7" Background="#F3F3F3">
+                                                <Border Margin="10,12,10,0" Height="10" CornerRadius="3" VerticalAlignment="Top" Background="#3B82ED" />
+                                                <Border Margin="10,30,26,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#1A000000" />
+                                                <Border Margin="10,44,40,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#1A000000" />
+                                            </Grid>
+                                        </Grid>
+                                        <TextBlock Text="Light" HorizontalAlignment="Center" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ThemeDark" Tag="dark" Click="ThemeCard_Click" Padding="0" Background="Transparent" BorderThickness="0"
+                                        AutomationProperties.Name="Dark">
+                                    <StackPanel Spacing="6">
+                                        <Grid Width="132" Height="84">
+                                            <Border x:Name="ThemeDarkRing" CornerRadius="10" BorderThickness="2" Opacity="0"
+                                                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}">
+                                                <Border.OpacityTransition><ScalarTransition Duration="0:0:0.15" /></Border.OpacityTransition>
+                                            </Border>
+                                            <Grid Margin="4" CornerRadius="7" Background="#202020">
+                                                <Border Margin="10,12,10,0" Height="10" CornerRadius="3" VerticalAlignment="Top" Background="#8AB8F7" />
+                                                <Border Margin="10,30,26,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#26FFFFFF" />
+                                                <Border Margin="10,44,40,0" Height="7" CornerRadius="3" VerticalAlignment="Top" Background="#26FFFFFF" />
+                                            </Grid>
+                                        </Grid>
+                                        <TextBlock Text="Dark" HorizontalAlignment="Center" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingsCardStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE945;" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Animations" />
+                                <TextBlock x:Name="AnimHint" Text="Motion when lists load, apps install and panels open."
+                                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="AnimSwitch" Grid.Column="2" OnContent="On" OffContent="Off" MinWidth="0"
+                                          Toggled="SettingChanged" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <TextBlock Text="Installing" Style="{StaticResource SectionHeaderStyle}" Margin="2,22,0,8" />
+                        <Grid Style="{StaticResource SettingsCardStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE7B8;" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Installer mode" />
+                                <TextBlock Text="Whether app installers show their own windows." Style="{StaticResource SecondaryTextStyle}" />
+                            </StackPanel>
+                            <ComboBox x:Name="ModeBox" Grid.Column="2" MinWidth="240" VerticalAlignment="Center" SelectionChanged="SettingChanged">
+                                <ComboBoxItem Content="Default (let winget decide)" />
+                                <ComboBoxItem Content="Silent (no installer windows)" />
+                                <ComboBoxItem Content="Interactive (show installer windows)" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid Style="{StaticResource SettingsCardStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE8FB;" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Accept agreements automatically" />
+                                <TextBlock Text="Package and source license agreements, so installs never wait for a prompt."
+                                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="AgreeSwitch" Grid.Column="2" OnContent="On" OffContent="Off" MinWidth="0"
+                                          Toggled="SettingChanged" VerticalAlignment="Center" />
+                        </Grid>
+                        <Grid Style="{StaticResource SettingsCardStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xEA18;" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Run as administrator by default" />
+                                <TextBlock Text="Admin runs open an elevated terminal, since their output can't be shown in the app."
+                                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="AdminSwitch" Grid.Column="2" OnContent="On" OffContent="Off" MinWidth="0"
+                                          Toggled="SettingChanged" VerticalAlignment="Center" />
+                        </Grid>
+                        <Grid Style="{StaticResource SettingsCardStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE756;" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Terminal" />
+                                <TextBlock Text="Where &quot;Open in terminal&quot; and admin runs go." Style="{StaticResource SecondaryTextStyle}" />
+                            </StackPanel>
+                            <ComboBox x:Name="TermBox" Grid.Column="2" MinWidth="240" VerticalAlignment="Center" SelectionChanged="SettingChanged">
+                                <ComboBoxItem Content="Automatic (Windows Terminal, else PowerShell)" />
+                                <ComboBoxItem Content="Windows Terminal" />
+                                <ComboBoxItem Content="PowerShell" />
+                            </ComboBox>
+                        </Grid>
+
+                        <TextBlock Text="Updates" Style="{StaticResource SectionHeaderStyle}" Margin="2,22,0,8" />
+                        <Expander x:Name="SkippedExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                  Padding="16,8,16,12">
+                            <Expander.Header>
+                                <Grid ColumnSpacing="16" Padding="0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="18" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="SkippedHeader" Text="Skipped updates" />
+                                        <TextBlock Text="Apps and versions you chose to hide from Updates. Stored by Updraft only."
+                                                   Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
                                 </Grid>
-                                <Border CornerRadius="6" Padding="12" Margin="0,4,0,0" Background="#1E1F24">
-                                    <TextBlock x:Name="DLog" FontFamily="Cascadia Mono, Consolas" FontSize="11"
-                                               Foreground="#D7DAE0" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                                </Border>
+                            </Expander.Header>
+                            <StackPanel>
+                                <TextBlock x:Name="SkippedEmpty" Text="Nothing is skipped." Style="{StaticResource SecondaryTextStyle}" Margin="0,4" />
+                                <ItemsControl x:Name="SkippedList" IsTabStop="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:SkipEntry">
+                                            <Grid ColumnSpacing="12" Padding="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="{x:Bind Id}" FontFamily="{StaticResource MonoFontFamily}" FontSize="13" />
+                                                    <TextBlock Text="{x:Bind Label}" Style="{StaticResource SecondaryTextStyle}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Stop skipping" Tag="{x:Bind Id}" Click="Unskip_Click" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
+                        </Expander>
+
+                        <TextBlock Text="About" Style="{StaticResource SectionHeaderStyle}" Margin="2,22,0,8" />
+                        <Grid Style="{StaticResource SettingsCardStyle}" Padding="16,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Image Source="ms-appx:///Assets/updraft.png" Width="44" Height="44" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                <TextBlock Text="Updraft" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="15" />
+                                <TextBlock x:Name="AboutVersion" Style="{StaticResource SecondaryTextStyle}" />
+                                <TextBlock x:Name="AboutWinget" Style="{StaticResource SecondaryTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Button Content="Keyboard shortcuts" Click="Shortcuts_Click" />
+                                <Button Click="OpenDataFolder_Click" ToolTipService.ToolTip="Settings and history are stored here">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE838;" FontSize="14" />
+                                        <TextBlock Text="Data folder" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="18" Margin="4,10,0,0">
+                            <HyperlinkButton Content="Website" NavigateUri="https://bilal8492.github.io/updraft/" Padding="0" />
+                            <HyperlinkButton Content="Source code" NavigateUri="https://github.com/bilal8492/updraft" Padding="0" />
+                            <HyperlinkButton Content="Report a bug" NavigateUri="https://github.com/bilal8492/updraft/issues" Padding="0" />
                         </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
+                        <TextBlock Text="No telemetry, no accounts. Updraft only talks to winget on this PC."
+                                   Style="{StaticResource SecondaryTextStyle}" Margin="4,10,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
 
-            <!-- action bar -->
-            <Grid x:Name="ActionBar" Grid.Row="1" Grid.ColumnSpan="2" Padding="24,10,16,10" ColumnSpacing="12"
-                  Background="{ThemeResource LayerFillColorDefaultBrush}"
-                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <CheckBox x:Name="SelectAll" Content="Select all" Click="SelectAll_Click" MinWidth="0" />
-                <TextBlock x:Name="SelCount" Grid.Column="1" VerticalAlignment="Center" Opacity="0.65" TextTrimming="CharacterEllipsis" />
-                <CheckBox x:Name="AdminChk" Grid.Column="2" Content="Run as administrator" MinWidth="0" />
-                <Button x:Name="CopyBtn" Grid.Column="3" Content="Copy script" Click="CopyScript_Click" IsEnabled="False" />
-                <Button x:Name="RunBtn" Grid.Column="4" Click="Run_Click" IsEnabled="False">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE756;" FontSize="12" />
-                        <TextBlock x:Name="RunText" Text="Run in terminal" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="InstallBtn" Grid.Column="5" Style="{StaticResource AccentButtonStyle}" Click="Install_Click" IsEnabled="False"
-                        ToolTipService.ToolTip="Ctrl+Enter to start  ·  Esc to cancel">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon x:Name="InstallIcon" Glyph="&#xE768;" FontSize="12" />
-                        <TextBlock x:Name="InstallText" Text="Update" />
-                    </StackPanel>
-                </Button>
+                <!-- ===================== floating dock: toast + selection bar ===================== -->
+                <StackPanel x:Name="BottomDock" Grid.Column="0" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                            Margin="24,0,24,22" Spacing="10">
+                    <StackPanel.ChildrenTransitions>
+                        <TransitionCollection>
+                            <RepositionThemeTransition />
+                        </TransitionCollection>
+                    </StackPanel.ChildrenTransitions>
+
+                    <Border x:Name="Toast" Visibility="Collapsed" HorizontalAlignment="Center" MaxWidth="560" MinWidth="280"
+                            CornerRadius="10" BorderThickness="1"
+                            Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}">
+                        <Grid>
+                            <Grid Padding="14,9,6,9" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid x:Name="ToastBadge" Width="22" Height="22" VerticalAlignment="Center">
+                                    <Ellipse x:Name="ToastDot" Fill="#16A34A" />
+                                    <FontIcon x:Name="ToastIcon" Glyph="&#xE73E;" FontSize="11" Foreground="White" />
+                                </Grid>
+                                <TextBlock x:Name="ToastText" Grid.Column="1" TextWrapping="Wrap" MaxLines="3" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button x:Name="ToastAction" Grid.Column="2" Style="{StaticResource SubtleButtonStyle}" Visibility="Collapsed"
+                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold"
+                                        Click="ToastAction_Click" VerticalAlignment="Center" />
+                                <Button x:Name="ToastClose" Grid.Column="3" Style="{StaticResource IconButtonStyle}" Click="ToastClose_Click"
+                                        AutomationProperties.Name="Dismiss" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE711;" FontSize="10" />
+                                </Button>
+                            </Grid>
+                            <Border x:Name="ToastTimer" Height="2" Margin="12,0" VerticalAlignment="Bottom" CornerRadius="1"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.7" />
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="ActionBar" Visibility="Collapsed" HorizontalAlignment="Center" CornerRadius="14" Padding="6"
+                            BorderThickness="1" Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}">
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel x:Name="BarSelection" Orientation="Horizontal" Spacing="8" Padding="8,0,0,0" VerticalAlignment="Center">
+                                <Border x:Name="SelBadge" MinWidth="26" Height="22" CornerRadius="11" Padding="7,0"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}">
+                                    <TextBlock x:Name="SelCount" Text="0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                </Border>
+                                <TextBlock x:Name="SelLabel" Text="selected" VerticalAlignment="Center" />
+                                <Button x:Name="ClearSelBtn" Style="{StaticResource IconButtonStyle}" Click="ClearSel_Click"
+                                        AutomationProperties.Name="Clear selection" ToolTipService.ToolTip="Clear selection">
+                                    <FontIcon Glyph="&#xE711;" FontSize="10" />
+                                </Button>
+                            </StackPanel>
+                            <Grid x:Name="BarRun" Visibility="Collapsed" Width="260" Padding="10,0,6,0" RowSpacing="5" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="RunLabel" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                <ProgressBar x:Name="RunProgress" Grid.Row="1" Maximum="100" />
+                            </Grid>
+                            <Border Grid.Column="1" Width="1" Margin="6,6" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                            <Button x:Name="CopyBtn" Grid.Column="2" Style="{StaticResource SubtleButtonStyle}" Click="CopyScript_Click"
+                                    ToolTipService.ToolTip="Copy the winget commands for the selected apps">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <FontIcon x:Name="CopyBtnIcon" Glyph="&#xE8C8;" FontSize="13" />
+                                    <TextBlock Text="Copy" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="RunBtn" Grid.Column="3" Style="{StaticResource SubtleButtonStyle}" Click="Run_Click"
+                                    ToolTipService.ToolTip="Run the selected apps in a terminal window">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <FontIcon Glyph="&#xE756;" FontSize="13" />
+                                    <TextBlock x:Name="RunText" Text="Terminal" />
+                                </StackPanel>
+                            </Button>
+                            <ToggleButton x:Name="AdminChk" Grid.Column="4" Padding="9,5"
+                                          ToolTipService.ToolTip="Run as administrator (uses an elevated terminal)"
+                                          AutomationProperties.Name="Run as administrator">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <FontIcon Glyph="&#xEA18;" FontSize="13" />
+                                    <TextBlock Text="Admin" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button x:Name="InstallBtn" Grid.Column="5" Style="{StaticResource AccentButtonStyle}" Click="Install_Click"
+                                    Padding="14,6" Margin="2,0,0,0" ToolTipService.ToolTip="Ctrl+Enter to start  ·  Esc to cancel">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon x:Name="InstallIcon" Glyph="&#xE898;" FontSize="13" />
+                                    <TextBlock x:Name="InstallText" Text="Update" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
             </Grid>
-
-            <!-- status bar -->
-            <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Padding="24,4,16,6">
-                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="Gray" VerticalAlignment="Center" />
-                <TextBlock x:Name="StatusText" Text="Ready" FontSize="12" Opacity="0.75" />
-            </StackPanel>
-        </Grid>
-    </NavigationView>
+        </NavigationView>
+    </Grid>
 </Window>
