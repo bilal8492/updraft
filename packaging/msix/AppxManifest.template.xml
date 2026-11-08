@@ -13,7 +13,7 @@
   <Identity Name="@IDENTITY_NAME@" Publisher="@PUBLISHER@" Version="@VERSION@" ProcessorArchitecture="@ARCH@" />
 
   <Properties>
-    <DisplayName>Updraft</DisplayName>
+    <DisplayName>UpInstall</DisplayName>
     <PublisherDisplayName>@PUBLISHER_DISPLAY@</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -27,9 +27,10 @@
   </Resources>
 
   <Applications>
-    <Application Id="Updraft" Executable="Updraft.exe" EntryPoint="Windows.FullTrustApplication">
+    <!-- Id keeps the former name (Updraft) so existing installs upgrade without losing Start pins. -->
+    <Application Id="Updraft" Executable="UpInstall.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Updraft"
+        DisplayName="UpInstall"
         Description="A simple, native Windows UI for winget: scan updates, pick apps, install."
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -42,7 +43,7 @@
   </Applications>
 
   <Capabilities>
-    <!-- Updraft launches winget, PowerShell and Windows Terminal, so it needs full trust. -->
+    <!-- UpInstall launches winget, PowerShell and Windows Terminal, so it needs full trust. -->
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>

@@ -1,36 +1,37 @@
 <p align="center">
-  <img src="docs/assets/icon.png" width="96" alt="Updraft logo" />
+  <img src="docs/assets/icon.png" width="96" alt="UpInstall logo" />
 </p>
 
-<h1 align="center">Updraft</h1>
+<h1 align="center">UpInstall</h1>
 
 <p align="center">
   <b>A simple, native Windows UI for <code>winget</code>.</b><br />
-  See every app that has an update, tick the ones you want, and install them in one click.
+  See every app that has an update, tick the ones you want, and install them in one click.<br />
+  <sub>Formerly called Updraft. Your settings and history move over automatically on first launch.</sub>
 </p>
 
 <p align="center">
-  <a href="https://github.com/bilal8492/updraft/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bilal8492/updraft/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://github.com/bilal8492/updraft/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/bilal8492/updraft?display_name=tag" /></a>
+  <a href="https://github.com/bilal8492/upinstall/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bilal8492/upinstall/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/bilal8492/upinstall/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/bilal8492/upinstall?display_name=tag" /></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <img alt="Windows 10 / 11 · x64 + ARM64" src="https://img.shields.io/badge/Windows-10%20%7C%2011%20%C2%B7%20x64%20%2B%20ARM64-0F6CBD" />
 </p>
 
 <p align="center">
-  <a href="https://bilal8492.github.io/updraft/">Website</a> ·
-  <a href="https://github.com/bilal8492/updraft/releases/latest">Download</a> ·
-  <a href="https://github.com/bilal8492/updraft/issues">Report a bug</a>
+  <a href="https://bilalansari.in/upinstall/">Website</a> ·
+  <a href="https://github.com/bilal8492/upinstall/releases/latest">Download</a> ·
+  <a href="https://github.com/bilal8492/upinstall/issues">Report a bug</a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/screenshot.png" alt="Updraft showing available updates with a details pane" width="820" />
+  <img src="docs/assets/shot-updates.png" alt="UpInstall updating eight apps: Git and Node.js are done, Visual Studio Code is installing and the rest are queued" width="820" />
 </p>
 
 ---
 
 ## Why
 
-`winget upgrade` is great, but reading its table and typing package ids by hand isn't. Updraft is the
+`winget upgrade` is great, but reading its table and typing package ids by hand isn't. UpInstall is the
 Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native front-end that does one job well.
 
 ## Features
@@ -40,7 +41,7 @@ Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native f
 - **Scans for updates on launch** and shows how many there are, with a major / minor / patch breakdown.
 - **Update all in one click**, or tick the apps you want. Filter as you type, by source, or sort by update type.
 - **Live progress inside the app:** each app shows a progress ring and its result, and the taskbar button shows
-  progress for the whole run (it flashes if the run finishes while Updraft is in the background).
+  progress for the whole run (it flashes if the run finishes while UpInstall is in the background).
 - **Skip just one version** of an update (it comes back when a newer one ships), skip an app for good, or **pin** it
   with `winget pin`. Skips can be undone right away and managed in Settings.
 - **Choose a version:** install or update to a specific release instead of the newest one.
@@ -55,15 +56,15 @@ Windows counterpart of the "Homebrew GUI" apps on macOS: a small, fast, native f
 - **Discover** to search the whole winget catalogue, with one-click popular searches.
 - **Starter packs** for setting up a new PC: Essentials, Developer, Creative, Chat & meetings, Gaming and
   Privacy & security. Apps you already have are left alone.
-- **Backup & restore.** Export your installed apps to a JSON file, then restore them on a new PC: Updraft shows which
+- **Backup & restore.** Export your installed apps to a JSON file, then restore them on a new PC: UpInstall shows which
   are already installed and ticks the rest. Uses winget's own export format.
 
 **Running**
 
 - **Generates the script for you.** Copy the exact `winget` commands and paste them into any terminal…
-- **…or run them in a terminal.** Updraft opens Windows Terminal (or PowerShell) with the selection.
+- **…or run them in a terminal.** UpInstall opens Windows Terminal (or PowerShell) with the selection.
 - **Optional "Run as administrator"** for apps that need elevation.
-- **History** of every install, update and uninstall run inside Updraft, grouped by day. Stored locally only.
+- **History** of every install, update and uninstall run inside UpInstall, grouped by day. Stored locally only.
 
 **The app**
 
@@ -81,15 +82,15 @@ Download the installer for your CPU and run it (direct links, always the newest 
 
 | Your PC | Installer | Portable zip |
 | --- | --- | --- |
-| Intel / AMD (x64) | [**Updraft-win-x64-setup.exe**](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe) | [zip](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64.zip) |
-| Windows on ARM (Snapdragon X, Surface Pro X…) | [**Updraft-win-arm64-setup.exe**](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe) | [zip](https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64.zip) |
+| Intel / AMD (x64) | [**UpInstall-win-x64-setup.exe**](https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-x64-setup.exe) | [zip](https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-x64.zip) |
+| Windows on ARM (Snapdragon X, Surface Pro X…) | [**UpInstall-win-arm64-setup.exe**](https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-arm64-setup.exe) | [zip](https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-arm64.zip) |
 
-All versions are on the [releases page](https://github.com/bilal8492/updraft/releases).
+All versions are on the [releases page](https://github.com/bilal8492/upinstall/releases).
 
 An **MSIX** package is also built for the Microsoft Store and for sideloading; see [packaging/README.md](packaging/README.md).
 
 The installer needs no admin rights by default (it installs for your user), adds a Start menu entry and an uninstaller.
-Prefer portable? Extract the zip anywhere and run `Updraft.exe`.
+Prefer portable? Extract the zip anywhere and run `UpInstall.exe`.
 
 **Requirements:** Windows 10 1809 or newer with [winget](https://learn.microsoft.com/windows/package-manager/winget/)
 (App Installer) available. Windows 11 includes it. The .NET runtime and Windows App SDK are bundled, so there is nothing else to install.
@@ -97,42 +98,42 @@ Prefer portable? Extract the zip anywhere and run `Updraft.exe`.
 > **SmartScreen:** the binaries are not code-signed yet, so Windows may show "Windows protected your PC". Click
 > *More info → Run anyway*. You can verify downloads with the `SHA256SUMS.txt` attached to each release, or with
 > GitHub's build-provenance attestation:
-> `gh attestation verify <zip> --repo bilal8492/updraft`.
+> `gh attestation verify <zip> --repo bilal8492/upinstall`.
 
 ## Build from source
 
 Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download) on Windows.
 
 ```powershell
-git clone https://github.com/bilal8492/updraft.git
-cd updraft
-.\build.cmd          # builds Release for x64
-.\Start-Updraft.cmd  # runs it
+git clone https://github.com/bilal8492/upinstall.git
+cd upinstall
+.\build.cmd            # builds Release for x64
+.\Start-UpInstall.cmd  # runs it
 ```
 
 Run it with `--demo` to try the UI with sample data and simulated installs. Nothing is installed or removed, winget
-isn't called, and demo mode keeps its own settings and history (in `%LOCALAPPDATA%\Updraft\demo`):
+isn't called, and demo mode keeps its own settings and history (in `%LOCALAPPDATA%\UpInstall\demo`):
 
 ```powershell
-.\Updraft\bin\x64\Release\net9.0-windows10.0.19041.0\win-x64\Updraft.exe --demo
+.\UpInstall\bin\x64\Release\net9.0-windows10.0.19041.0\win-x64\UpInstall.exe --demo
 ```
 
 Build for ARM64 or publish a self-contained folder:
 
 ```powershell
-dotnet publish Updraft/Updraft.csproj -c Release -p:Platform=ARM64 -r win-arm64 --self-contained true -o publish/win-arm64
+dotnet publish UpInstall/UpInstall.csproj -c Release -p:Platform=ARM64 -r win-arm64 --self-contained true -o publish/win-arm64
 ```
 
 ## How it works
 
-Updraft shells out to `winget` (`upgrade`, `list`, `search`, `show`) and parses the fixed-width table output. Column
+UpInstall shells out to `winget` (`upgrade`, `list`, `search`, `show`) and parses the fixed-width table output. Column
 positions come from the header line, so it works regardless of the Windows display language. Installs run inside the
 app with winget's output captured per package; "Run in terminal" and admin runs pass a generated PowerShell script to
 Windows Terminal or PowerShell instead. Package ids and chosen versions are validated against a strict pattern before
 they ever reach a command line.
 
 ```
-Updraft/
+UpInstall/
   MainWindow.xaml(.cs)   layout, loading, filtering, detail pane and the in-app runner
   MainWindow.Chrome.cs   status, toasts, hero card, empty states, context menus
   MainWindow.Pages.cs    Settings, Discover start page, version picker, shortcuts
@@ -142,7 +143,7 @@ Updraft/
   Motion.cs, Controls.cs animations and small custom controls
   Styles.xaml            colours, typography and shared styles
   DemoData.cs            sample data for --demo
-installer/updraft.iss    Inno Setup script for the setup .exe
+installer/upinstall.iss  Inno Setup script for the setup .exe
 docs/                    the project website (GitHub Pages)
 promo-video/             the promo video, made with Remotion (see its README)
 .github/workflows/       CI, release and Pages pipelines
@@ -152,7 +153,7 @@ promo-video/             the promo video, made with Remotion (see its README)
 
 - [x] Update everything / ignore (pin) a package
 - [x] Live progress inside the app
-- [ ] Winget package manifest (`winget install Updraft`)
+- [ ] Winget package manifest (`winget install UpInstall`)
 - [ ] Code-signed releases
 - [ ] Tray icon with update notifications
 
@@ -160,7 +161,7 @@ Ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Disclaimer
 
-Updraft is an independent open-source project. It is not affiliated with or endorsed by Microsoft. *Windows* and
+UpInstall is an independent open-source project. It is not affiliated with or endorsed by Microsoft. *Windows* and
 *winget* are trademarks of Microsoft Corporation.
 
 ## License

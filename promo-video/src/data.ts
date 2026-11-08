@@ -1,4 +1,4 @@
-// Sample data mirroring Updraft's --demo mode (Updraft/DemoData.cs, Catalog.cs).
+// Sample data mirroring UpInstall's --demo mode (UpInstall/DemoData.cs, Catalog.cs).
 
 import type { IconName } from "./components/ui";
 

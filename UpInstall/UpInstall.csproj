@@ -4,8 +4,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
-    <RootNamespace>Updraft</RootNamespace>
-    <AssemblyName>Updraft</AssemblyName>
+    <RootNamespace>UpInstall</RootNamespace>
+    <AssemblyName>UpInstall</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
@@ -19,11 +19,11 @@
 
     <!-- App metadata -->
     <Version>0.1.2</Version>
-    <Product>Updraft</Product>
+    <Product>UpInstall</Product>
     <Authors>Bilal Ansari</Authors>
     <Description>A simple, native Windows UI for winget: scan updates, pick apps, install.</Description>
     <Copyright>Copyright (c) 2026 Bilal Ansari. MIT License.</Copyright>
-    <ApplicationIcon>Assets\updraft.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\upinstall.ico</ApplicationIcon>
     <PublishReadyToRun>false</PublishReadyToRun>
     <!-- Keep local file paths out of the compiled binaries -->
     <DeterministicSourcePaths>true</DeterministicSourcePaths>
@@ -31,7 +31,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Assets\updraft.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\upinstall.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

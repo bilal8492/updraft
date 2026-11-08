@@ -4,7 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
-namespace Updraft;
+namespace UpInstall;
 
 public enum RunState { None, Queued, Running, Succeeded, Failed, Cancelled }
 
@@ -125,7 +125,7 @@ public sealed class Pkg : INotifyPropertyChanged
         set { if (_isPinned == value) return; _isPinned = value; Notify(nameof(IsPinned), nameof(PinnedVisibility)); }
     }
 
-    /// <summary>Hidden from the update list by the user (stored locally by Updraft, not by winget).</summary>
+    /// <summary>Hidden from the update list by the user (stored locally by UpInstall, not by winget).</summary>
     public bool IsSkipped
     {
         get => _isSkipped;

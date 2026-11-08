@@ -1,13 +1,13 @@
 import { Composition, Folder } from "remotion";
 import { SiteBackup, SiteDetails, SiteDiscover, SiteScript, SiteUpdates } from "./site/SiteStills";
-import { UpdraftPromo } from "./UpdraftPromo";
+import { UpInstallPromo } from "./UpInstallPromo";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="UpdraftPromo"
-        component={UpdraftPromo}
+        id="UpInstallPromo"
+        component={UpInstallPromo}
         durationInFrames={1413}
         fps={30}
         width={1920}

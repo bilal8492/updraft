@@ -60,7 +60,7 @@ export const Outro = () => {
             translate: interpolate(frame, [10, 30], ["0px 50px", "0px 0px"], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.16, 1, 0.3, 1) }),
           }}
         >
-          Updraft
+          UpInstall
         </Headline>
         <Subline
           name="Outro tagline"
@@ -93,10 +93,10 @@ export const Outro = () => {
           }}
         >
           <Icon name="download" size={36} color="white" strokeWidth={2.2} />
-          bilal8492.github.io/updraft
+          bilalansari.in/upinstall
         </div>
         <div style={{ marginTop: 22, fontSize: 30, color: C.textFaint, opacity: reveal(frame, 44, 18) }}>
-          github.com/bilal8492/updraft
+          github.com/bilal8492/upinstall
         </div>
       </div>
     </AbsoluteFill>

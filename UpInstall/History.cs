@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Media;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>One finished in-app install, update or uninstall.</summary>
 public sealed class HistoryEntry
@@ -77,7 +77,7 @@ public sealed class HistoryGroup : List<HistoryEntry>
 }
 
 /// <summary>
-/// Local log of what Updraft installed, updated or removed, in %LOCALAPPDATA%\Updraft\history.json.
+/// Local log of what UpInstall installed, updated or removed, in %LOCALAPPDATA%\UpInstall\history.json.
 /// Never leaves the machine. Capped so the file stays small.
 /// </summary>
 public static class HistoryStore

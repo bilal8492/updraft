@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Packs a published (self-contained) Updraft build into an .msix, optionally signing it.
+  Packs a published (self-contained) UpInstall build into an .msix, optionally signing it.
 
 .EXAMPLE
-  dotnet publish Updraft/Updraft.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true -o publish/win-x64
-  ./packaging/build-msix.ps1 -PublishDir publish/win-x64 -Arch x64 -Version 0.2.0 -OutFile Updraft-win-x64.msix
+  dotnet publish UpInstall/UpInstall.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true -o publish/win-x64
+  ./packaging/build-msix.ps1 -PublishDir publish/win-x64 -Arch x64 -Version 0.2.0 -OutFile UpInstall-win-x64.msix
 
 .NOTES
   Unsigned output is what you upload to the Microsoft Store (Microsoft signs it for you).
@@ -16,6 +16,7 @@ param(
     [Parameter(Mandatory)][ValidateSet('x64', 'arm64')][string]$Arch,
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$OutFile,
+    # Kept from the app's former name (Updraft): MSIX only upgrades in place when the identity stays the same.
     [string]$IdentityName = 'BilalAnsari.Updraft',
     [string]$Publisher = 'CN=Bilal Ansari',
     [string]$PublisherDisplayName = 'Bilal Ansari',
@@ -26,14 +27,14 @@ param(
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\SdkTool.ps1"
 
-if (-not (Test-Path (Join-Path $PublishDir 'Updraft.exe'))) { throw "No Updraft.exe in $PublishDir" }
+if (-not (Test-Path (Join-Path $PublishDir 'UpInstall.exe'))) { throw "No UpInstall.exe in $PublishDir" }
 
 # MSIX versions are exactly four numeric parts: 0.2.0-beta1 -> 0.2.0.0
 $nums = @(($Version -replace '[-+].*', '').Split('.') | ForEach-Object { [int]$_ })
 while ($nums.Count -lt 4) { $nums += 0 }
 $msixVersion = ($nums[0..3]) -join '.'
 
-$stage = Join-Path ([IO.Path]::GetTempPath()) "updraft-msix-$Arch"
+$stage = Join-Path ([IO.Path]::GetTempPath()) "upinstall-msix-$Arch"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory $stage | Out-Null
 

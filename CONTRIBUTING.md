@@ -1,14 +1,14 @@
-# Contributing to Updraft
+# Contributing to UpInstall
 
-Thanks for helping! Updraft is intentionally small. Please keep changes focused.
+Thanks for helping! UpInstall is intentionally small. Please keep changes focused.
 
 ## Setup
 
 1. Install the [.NET 9 SDK](https://dotnet.microsoft.com/download) (`winget install Microsoft.DotNet.SDK.9`).
 2. Fork and clone the repo.
-3. `.\build.cmd` then `.\Start-Updraft.cmd`.
+3. `.\build.cmd` then `.\Start-UpInstall.cmd`.
 
-You don't need Visual Studio, but it works too: open `Updraft/Updraft.csproj`.
+You don't need Visual Studio, but it works too: open `UpInstall/UpInstall.csproj`.
 
 ## Pull requests
 

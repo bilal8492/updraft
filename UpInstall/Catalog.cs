@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml.Media;
 
-namespace Updraft;
+namespace UpInstall;
 
 public sealed class StarterApp
 {

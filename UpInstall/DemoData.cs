@@ -1,9 +1,9 @@
 using System.Text;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>
-/// Stand-in for winget when Updraft runs with <c>--demo</c>: realistic tables and simulated installs, so the UI can be
+/// Stand-in for winget when UpInstall runs with <c>--demo</c>: realistic tables and simulated installs, so the UI can be
 /// tried, developed and screenshotted on any PC. It never starts a process, so nothing is installed or removed.
 /// </summary>
 internal static class DemoData

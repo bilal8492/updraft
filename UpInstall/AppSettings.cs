@@ -1,9 +1,9 @@
 using System.Text.Json;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>
-/// User preferences, stored as JSON in %LOCALAPPDATA%\Updraft\settings.json.
+/// User preferences, stored as JSON in %LOCALAPPDATA%\UpInstall\settings.json.
 /// Local only: nothing here is ever sent anywhere.
 /// </summary>
 public sealed class AppSettings
@@ -79,10 +79,29 @@ public sealed class AppSettings
 
     /// <summary>Where settings and history live. Demo mode keeps its own copy so it never touches real data.</summary>
     public static string DataDir => WingetService.Demo
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft", "demo")
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Updraft");
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UpInstall", "demo")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UpInstall");
 
     private static string FilePath => Path.Combine(DataDir, "settings.json");
+
+    /// <summary>
+    /// The app was called Updraft before v0.6 and kept its data in %LOCALAPPDATA%\Updraft. On the first run after the
+    /// rename, move that folder over so settings, history and skipped versions carry across. Call before anything
+    /// reads <see cref="DataDir"/>.
+    /// </summary>
+    public static void MigrateFromUpdraft()
+    {
+        if (WingetService.Demo) return; // demo mode never touches real data
+        try
+        {
+            var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var legacy = Path.Combine(root, "Updraft");
+            var current = Path.Combine(root, "UpInstall");
+            if (Directory.Exists(legacy) && !Directory.Exists(current))
+                Directory.Move(legacy, current);
+        }
+        catch { /* best effort: start with defaults rather than fail to launch */ }
+    }
 
     private static AppSettings Load()
     {

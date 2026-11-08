@@ -39,7 +39,7 @@ jobs:
         shell: pwsh
         run: |
           $version = $env:TAG.TrimStart('v')
-          dotnet publish Updraft/Updraft.csproj -c Release `
+          dotnet publish UpInstall/UpInstall.csproj -c Release `
             -p:Platform=${{ matrix.platform }} -r ${{ matrix.rid }} --self-contained true `
             -p:Version=$version -o publish/${{ matrix.rid }}
 
@@ -47,7 +47,7 @@ jobs:
         shell: pwsh
         run: |
           # Version-free names so https://github.com/<repo>/releases/latest/download/<name> is a stable direct link
-          $zip = "Updraft-${{ matrix.rid }}.zip"
+          $zip = "UpInstall-${{ matrix.rid }}.zip"
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath $zip -CompressionLevel Optimal
           "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -59,9 +59,9 @@ jobs:
         run: |
           $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')   # numeric part only
           $arch = '${{ matrix.rid }}'.Replace('win-', '')
-          $name = "Updraft-${{ matrix.rid }}-setup"
+          $name = "UpInstall-${{ matrix.rid }}-setup"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DVersion=$version" "/DArch=$arch" `
-            "/DSourceDir=$PWD\publish\${{ matrix.rid }}" "/DOutputDir=$PWD" "/F$name" installer\updraft.iss
+            "/DSourceDir=$PWD\publish\${{ matrix.rid }}" "/DOutputDir=$PWD" "/F$name" installer\upinstall.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
           "SETUP=$name.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -87,7 +87,7 @@ jobs:
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
           try {
             ./packaging/build-msix.ps1 -PublishDir "publish/${{ matrix.rid }}" -Arch $arch -Version $version `
-              -OutFile "msix/Updraft-${{ matrix.rid }}.msix" -PfxPath $pfx -PfxPassword $env:PFX_PASSWORD
+              -OutFile "msix/UpInstall-${{ matrix.rid }}.msix" -PfxPath $pfx -PfxPassword $env:PFX_PASSWORD
           } finally { Remove-Item $pfx -Force -ErrorAction SilentlyContinue }
 
       - uses: actions/upload-artifact@v7
@@ -127,17 +127,17 @@ jobs:
         if: env.PFX_B64 != ''
         shell: pwsh
         run: |
-          dotnet restore Updraft/Updraft.csproj   # brings in makeappx and signtool (Windows SDK build tools)
+          dotnet restore UpInstall/UpInstall.csproj   # brings in makeappx and signtool (Windows SDK build tools)
           $version = ($env:TAG.TrimStart('v') -replace '[-+].*', '')
           $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
           New-Item -ItemType Directory msix-out | Out-Null
           try {
             ./packaging/bundle-msix.ps1 -InputDir msix-in -Version $version `
-              -OutFile msix-out/Updraft.msixbundle -PfxPath $pfx -PfxPassword $env:PFX_PASSWORD
+              -OutFile msix-out/UpInstall.msixbundle -PfxPath $pfx -PfxPassword $env:PFX_PASSWORD
             # Public certificate people trust to install the sideload package (no private key in it).
             $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, $env:PFX_PASSWORD)
-            [IO.File]::WriteAllBytes('msix-out/Updraft-signing.cer', $cert.Export('Cert'))
+            [IO.File]::WriteAllBytes('msix-out/UpInstall-signing.cer', $cert.Export('Cert'))
           } finally { Remove-Item $pfx -Force -ErrorAction SilentlyContinue }
 
       - uses: actions/upload-artifact@v7
@@ -190,6 +190,6 @@ jobs:
             gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
-              --title "Updraft $TAG" --generate-notes \
-              --notes "**Install:** download the \`-setup.exe\` for your CPU, **win-x64** (Intel/AMD) or **win-arm64** (Windows on ARM), and run it. **Portable:** the \`.zip\` needs no install, just extract and run Updraft.exe. **MSIX (optional):** if this release has an \`Updraft.msixbundle\`, trust \`Updraft-signing.cer\` first (see packaging/README.md), then open the bundle. Verify downloads with SHA256SUMS.txt. The binaries are not code-signed yet, so SmartScreen may show a warning (More info, then Run anyway)."
+              --title "UpInstall $TAG" --generate-notes \
+              --notes "**Install:** download the \`-setup.exe\` for your CPU, **win-x64** (Intel/AMD) or **win-arm64** (Windows on ARM), and run it. **Portable:** the \`.zip\` needs no install, just extract and run UpInstall.exe. **MSIX (optional):** if this release has an \`UpInstall.msixbundle\`, trust \`UpInstall-signing.cer\` first (see packaging/README.md), then open the bundle. Verify downloads with SHA256SUMS.txt. The binaries are not code-signed yet, so SmartScreen may show a warning (More info, then Run anyway)."
           fi

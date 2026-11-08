@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 const tmp = "out/site";
 const assets = "../docs/assets";
-const video = "out/updraft-promo.mp4";
+const video = "out/upinstall-promo.mp4";
 
 mkdirSync(tmp, { recursive: true });
 
@@ -34,14 +34,14 @@ for (const s of stills) {
 }
 
 // Poster (the Updates scene, just before "Update all" is clicked) and social preview (the intro card).
-still("UpdraftPromo", 318, "poster.png");
+still("UpInstallPromo", 318, "poster.png");
 ffmpeg("-i", join(tmp, "poster.png"), "-vf", "scale=1600:-2", "-q:v", "3", join(assets, "video-poster.jpg"));
-still("UpdraftPromo", 70, "og.png");
+still("UpInstallPromo", 70, "og.png");
 ffmpeg("-i", join(tmp, "og.png"), "-vf", "scale=1200:675,crop=1200:630:0:22", "-q:v", "3", join(assets, "og.jpg"));
 
 // Web copy of the video: H.264, no audio track, moov atom up front so it starts streaming at once.
 if (!existsSync(video)) throw new Error(`Render the video first: ${video} is missing.`);
-ffmpeg("-i", video, "-c:v", "libx264", "-preset", "slow", "-crf", "24", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", join(assets, "updraft-promo.mp4"));
+ffmpeg("-i", video, "-c:v", "libx264", "-preset", "slow", "-crf", "24", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", join(assets, "upinstall-promo.mp4"));
 
 rmSync(tmp, { recursive: true, force: true });
 console.log("Site assets written to", assets);

@@ -5,15 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#060A16">
-<title>Updraft: every Windows app update, one click</title>
-<meta name="description" content="Updraft is a free, open-source Windows app for winget. See every update, tick the ones you want and install them with live progress. Starter packs, backup and restore, native WinUI 3, x64 and ARM64.">
-<link rel="icon" type="image/png" href="assets/icon.png">
-<meta property="og:title" content="Updraft: every Windows app update, one click">
-<meta property="og:description" content="A simple, native Windows app for winget. Free, open source, x64 and ARM64.">
+<title>UpInstall: free winget GUI to update all your Windows apps</title>
+<meta name="description" content="UpInstall is a free, open-source winget GUI for Windows 10 and 11. See every app update, tick the ones you want and install them in one click. x64 and ARM64.">
+<meta name="author" content="Bilal Ansari">
+<link rel="canonical" href="https://bilalansari.in/upinstall/">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<meta property="og:site_name" content="UpInstall">
+<meta property="og:locale" content="en_US">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://bilal8492.github.io/updraft/assets/og.jpg">
-<meta property="og:url" content="https://bilal8492.github.io/updraft/">
+<meta property="og:url" content="https://bilalansari.in/upinstall/">
+<meta property="og:title" content="UpInstall: every Windows app update, one click">
+<meta property="og:description" content="A free, open-source winget GUI for Windows. See every update, pick the ones you want and install them with live progress. x64 and ARM64.">
+<meta property="og:image" content="https://bilalansari.in/upinstall/assets/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The UpInstall logo with the tagline: the simple, native Windows app for winget">
 <meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://bilalansari.in/upinstall/#app",
+      "name": "UpInstall",
+      "alternateName": "Updraft",
+      "description": "A free, open-source winget GUI for Windows. See every app update, pick the ones you want and install them with live progress. Includes starter packs and backup and restore.",
+      "url": "https://bilalansari.in/upinstall/",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Windows 10 (1809 or newer), Windows 11",
+      "processorRequirements": "x64 or ARM64",
+      "downloadUrl": "https://github.com/bilal8492/upinstall/releases/latest",
+      "image": "https://bilalansari.in/upinstall/assets/icon.png",
+      "screenshot": "https://bilalansari.in/upinstall/assets/shot-updates.png",
+      "license": "https://github.com/bilal8492/upinstall/blob/main/LICENSE",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@type": "Person", "name": "Bilal Ansari", "url": "https://bilalansari.in/" },
+      "sameAs": ["https://github.com/bilal8492/upinstall"]
+    },
+    {
+      "@type": "VideoObject",
+      "name": "UpInstall tour",
+      "description": "A 47-second tour of UpInstall, a free winget GUI for updating Windows apps.",
+      "thumbnailUrl": "https://bilalansari.in/upinstall/assets/video-poster.jpg",
+      "contentUrl": "https://bilalansari.in/upinstall/assets/upinstall-promo.mp4",
+      "uploadDate": "2026-11-08T18:22:00+05:30",
+      "duration": "PT47S"
+    }
+  ]
+}
+</script>
 <style>
 :root{
   --bg:#060A16; --ink:#F4F7FC; --muted:rgba(226,233,246,.70); --faint:rgba(226,233,246,.46);
@@ -76,7 +119,10 @@ h1{font:700 clamp(44px,8.2vw,96px)/1.0 var(--display);letter-spacing:-.035em;mar
 .grad{background:linear-gradient(100deg,#8AB8F7 0%,#60A5FA 40%,#38BDF8 75%,#A5B4FC 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .lead{font-size:clamp(18px,2vw,21px);color:var(--muted);max-width:60ch;margin:0 auto 34px;text-wrap:pretty}
 .cta{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
-.meta{margin:20px 0 0;font-size:14px;color:var(--faint);display:flex;flex-wrap:wrap;justify-content:center;row-gap:4px}
+.alt{margin:16px 0 0;font-size:15px;color:var(--muted)}
+.alt a{color:var(--accent-ink);font-weight:600;text-decoration:underline;text-decoration-color:rgba(156,195,255,.35);text-underline-offset:3px;white-space:nowrap}
+.alt a:hover{text-decoration-color:currentColor}
+.meta{margin:14px 0 0;font-size:14px;color:var(--faint);display:flex;flex-wrap:wrap;justify-content:center;row-gap:4px}
 .meta span{white-space:nowrap}
 .meta span+span::before{content:"·";margin:0 10px}
 
@@ -200,13 +246,13 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
 <div class="ambient" aria-hidden="true"></div>
 
 <header class="nav"><div class="wrap">
-  <a class="brand" href="#top"><img src="assets/icon.png" alt="">Updraft</a>
+  <a class="brand" href="#top"><img src="assets/icon.png" alt="">UpInstall</a>
   <nav class="nav-links" aria-label="Sections">
     <a href="#features">Features</a>
     <a href="#discover">Starter packs</a>
     <a href="#windows">Why native</a>
     <a href="#faq">FAQ</a>
-    <a href="https://github.com/bilal8492/updraft">GitHub</a>
+    <a href="https://github.com/bilal8492/upinstall">GitHub</a>
   </nav>
   <a class="btn btn-primary" href="#download">Download</a>
 </div></header>
@@ -216,9 +262,9 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
 <section class="hero"><div class="wrap">
   <span class="pill"><b>FREE</b>Open source for Windows 10 &amp; 11</span>
   <h1>Every app update. <span class="grad" style="display:block">One click.</span></h1>
-  <p class="lead">Updraft is a simple, native Windows app for <code>winget</code>. See every update, tick the ones you want and install them, with live progress, right inside the app.</p>
+  <p class="lead">UpInstall is a simple, native Windows app for <code>winget</code>. See every update, tick the ones you want and install them, with live progress, right inside the app.</p>
   <div class="cta">
-    <a class="btn btn-primary" id="cta" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">
+    <a class="btn btn-primary" id="cta" href="https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-x64-setup.exe">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
       <span id="cta-text">Download for Windows</span>
     </a>
@@ -227,12 +273,13 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
       Watch the tour
     </a>
   </div>
+  <p class="alt"><span id="alt-label">Windows on ARM?</span> <a id="alt-link" href="https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-arm64-setup.exe">Download the ARM64 installer</a></p>
   <p class="meta"><span>x64 and ARM64</span><span>No account</span><span>No telemetry</span><span>MIT licence</span></p>
 
   <figure class="stage reveal" id="tour">
     <div class="player" id="player">
       <div class="player-inner">
-        <video id="promo" src="assets/updraft-promo.mp4" poster="assets/video-poster.jpg" width="1920" height="1080" muted loop playsinline preload="metadata" aria-label="A 47-second tour of Updraft"></video>
+        <video id="promo" src="assets/upinstall-promo.mp4" poster="assets/video-poster.jpg" width="1920" height="1080" muted loop playsinline preload="metadata" aria-label="A 47-second tour of UpInstall"></video>
         <button class="play" id="play" type="button" aria-label="Play the tour">
           <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>
         </button>
@@ -253,14 +300,14 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
   <div class="copy reveal">
     <p class="eyebrow">Updates</p>
     <h2>See it all. Update it all.</h2>
-    <p class="sub">Updraft scans on launch and shows how many updates are waiting, split into major, minor and patch.</p>
+    <p class="sub">UpInstall scans on launch and shows how many updates are waiting, split into major, minor and patch.</p>
     <ul class="checks">
       <li><span><b>Update all</b> in one click, or tick just the apps you want.</span></li>
       <li><span>Filter as you type, by source, or sort by update type.</span></li>
       <li><span><b>Live progress</b>: a ring and a result for every app, plus progress on the taskbar button.</span></li>
     </ul>
   </div>
-  <figure class="shot reveal"><img src="assets/shot-updates.png" width="1680" height="1120" loading="lazy" alt="Updraft updating eight apps: Git and Node.js are done, Visual Studio Code is installing and the rest are queued"></figure>
+  <figure class="shot reveal"><img src="assets/shot-updates.png" width="1680" height="1120" loading="lazy" alt="UpInstall updating eight apps: Git and Node.js are done, Visual Studio Code is installing and the rest are queued"></figure>
 </div></section>
 
 <section class="feature"><div class="wrap split flip">
@@ -295,21 +342,21 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
   <div class="copy reveal">
     <p class="eyebrow">Scripts &amp; terminal</p>
     <h2>Copy it. Or run it.</h2>
-    <p class="sub">Updraft writes the exact <code>winget</code> commands for your selection. Paste them anywhere, or let Updraft open them in a terminal.</p>
+    <p class="sub">UpInstall writes the exact <code>winget</code> commands for your selection. Paste them anywhere, or let UpInstall open them in a terminal.</p>
     <ul class="checks">
       <li><span><b>Copy script</b> for any terminal or your own automation.</span></li>
       <li><span><b>Run in terminal</b> opens Windows Terminal, or PowerShell.</span></li>
       <li><span><b>Run as administrator</b> for apps that need elevation.</span></li>
     </ul>
   </div>
-  <figure class="shot reveal"><img src="assets/shot-script.png" width="1120" height="770" loading="lazy" alt="Updraft's command bar with Run as administrator ticked, and an administrator PowerShell window running the generated winget upgrade commands"></figure>
+  <figure class="shot reveal"><img src="assets/shot-script.png" width="1120" height="770" loading="lazy" alt="UpInstall's command bar with Run as administrator ticked, and an administrator PowerShell window running the generated winget upgrade commands"></figure>
 </div></section>
 
 <section class="feature stack"><div class="wrap">
   <div class="reveal">
     <p class="eyebrow">Backup &amp; restore</p>
     <h2>Moving PCs? Bring your apps.</h2>
-    <p class="sub">Export your installed apps to a JSON file, then restore them on the new PC. Updraft ticks what's missing and skips what's already there.</p>
+    <p class="sub">Export your installed apps to a JSON file, then restore them on the new PC. UpInstall ticks what's missing and skips what's already there.</p>
   </div>
   <figure class="shot reveal"><img src="assets/shot-backup.png" width="1620" height="660" loading="lazy" alt="Two panels: This PC exports six apps to a JSON file, and New PC restores them with five ticked and Windows Terminal marked as already installed"></figure>
 </div></section>
@@ -352,7 +399,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
     <div class="tile wide reveal">
       <div class="tags"><span>MIT licence</span><span>.NET 9</span><span>WinUI 3</span><span>Windows App SDK</span></div>
       <h3>Free and open source</h3>
-      <p>Read the code, file an issue or send a pull request on <a href="https://github.com/bilal8492/updraft">GitHub</a>.</p>
+      <p>Read the code, file an issue or send a pull request on <a href="https://github.com/bilal8492/upinstall">GitHub</a>.</p>
     </div>
   </div>
 </div></section>
@@ -370,8 +417,8 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
         <div><h3>Intel / AMD (x64)</h3><p>Most Windows PCs</p></div>
       </header>
       <div class="row">
-        <a class="btn btn-primary" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64-setup.exe">Installer (.exe)</a>
-        <a class="btn btn-ghost" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-x64.zip">Portable (.zip)</a>
+        <a class="btn btn-primary" href="https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-x64-setup.exe">Installer (.exe)</a>
+        <a class="btn btn-ghost" href="https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-x64.zip">Portable (.zip)</a>
       </div>
     </article>
     <article class="dl reveal" id="dl-arm">
@@ -380,12 +427,12 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
         <div><h3>Windows on ARM</h3><p>Snapdragon X, Surface Pro X…</p></div>
       </header>
       <div class="row">
-        <a class="btn btn-ghost" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe">Installer (.exe)</a>
-        <a class="btn btn-ghost" href="https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64.zip">Portable (.zip)</a>
+        <a class="btn btn-ghost" href="https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-arm64-setup.exe">Installer (.exe)</a>
+        <a class="btn btn-ghost" href="https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-arm64.zip">Portable (.zip)</a>
       </div>
     </article>
   </div>
-  <p class="fine">Needs Windows 10 1809 or newer with winget (built into Windows 11; check with <code>winget --version</code>). Builds come from GitHub Actions with SHA-256 checksums and build-provenance attestations on the <a href="https://github.com/bilal8492/updraft/releases/latest">release page</a>. They aren't code-signed yet, so SmartScreen may ask you to choose <i>More info</i>, then <i>Run anyway</i>.</p>
+  <p class="fine">Needs Windows 10 1809 or newer with winget (built into Windows 11; check with <code>winget --version</code>). Builds come from GitHub Actions with SHA-256 checksums and build-provenance attestations on the <a href="https://github.com/bilal8492/upinstall/releases/latest">release page</a>. They aren't code-signed yet, so SmartScreen may ask you to choose <i>More info</i>, then <i>Run anyway</i>.</p>
 </div></section>
 
 <section class="feature" id="faq"><div class="wrap">
@@ -394,11 +441,11 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
     <h2>Before you install.</h2>
   </div>
   <div class="faq reveal">
-    <details><summary>Does Updraft send data anywhere?</summary><p>No. It has no telemetry, accounts or network calls of its own. It runs your local <code>winget</code>, which contacts the winget sources as usual.</p></details>
-    <details><summary>Do I need winget installed?</summary><p>Yes. It ships with Windows 11 and recent Windows 10 as App Installer. If it's missing, Updraft explains how to get it.</p></details>
-    <details><summary>Can I try it without installing anything?</summary><p>Run <code>Updraft.exe --demo</code> to explore with sample data and simulated installs. Nothing is installed or removed, and winget isn't called.</p></details>
-    <details><summary>Is it affiliated with Microsoft?</summary><p>No. Updraft is an independent open-source project. Windows and winget are trademarks of Microsoft Corporation.</p></details>
-    <details><summary>Can I contribute?</summary><p>Yes, please. Read <a href="https://github.com/bilal8492/updraft/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>, then open an issue or a pull request.</p></details>
+    <details><summary>Does UpInstall send data anywhere?</summary><p>No. It has no telemetry, accounts or network calls of its own. It runs your local <code>winget</code>, which contacts the winget sources as usual.</p></details>
+    <details><summary>Do I need winget installed?</summary><p>Yes. It ships with Windows 11 and recent Windows 10 as App Installer. If it's missing, UpInstall explains how to get it.</p></details>
+    <details><summary>Can I try it without installing anything?</summary><p>Run <code>UpInstall.exe --demo</code> to explore with sample data and simulated installs. Nothing is installed or removed, and winget isn't called.</p></details>
+    <details><summary>Is it affiliated with Microsoft?</summary><p>No. UpInstall is an independent open-source project. Windows and winget are trademarks of Microsoft Corporation.</p></details>
+    <details><summary>Can I contribute?</summary><p>Yes, please. Read <a href="https://github.com/bilal8492/upinstall/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>, then open an issue or a pull request.</p></details>
   </div>
 
   <div class="final reveal">
@@ -406,8 +453,8 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
     <h2>Give your apps a lift.</h2>
     <p>Free, open source and ready in a minute.</p>
     <div class="cta">
-      <a class="btn btn-primary" href="#download">Download Updraft</a>
-      <a class="btn btn-ghost" href="https://github.com/bilal8492/updraft">Star on GitHub</a>
+      <a class="btn btn-primary" href="#download">Download UpInstall</a>
+      <a class="btn btn-ghost" href="https://github.com/bilal8492/upinstall">Star on GitHub</a>
     </div>
   </div>
 </div></section>
@@ -415,11 +462,11 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
 </main>
 
 <footer><div class="wrap">
-  <span>Updraft · MIT © 2026 Bilal Ansari</span><span class="sp"></span>
-  <a href="https://github.com/bilal8492/updraft">GitHub</a>
-  <a href="https://github.com/bilal8492/updraft/releases">Releases</a>
-  <a href="https://github.com/bilal8492/updraft/issues">Issues</a>
-  <a href="https://github.com/bilal8492/updraft/blob/main/SECURITY.md">Security</a>
+  <span>UpInstall · MIT © 2026 Bilal Ansari</span><span class="sp"></span>
+  <a href="https://github.com/bilal8492/upinstall">GitHub</a>
+  <a href="https://github.com/bilal8492/upinstall/releases">Releases</a>
+  <a href="https://github.com/bilal8492/upinstall/issues">Issues</a>
+  <a href="https://github.com/bilal8492/upinstall/blob/main/SECURITY.md">Security</a>
 </div></footer>
 
 <script>
@@ -460,8 +507,12 @@ document.documentElement.classList.add("js");
   if (u && u.getHighEntropyValues) {
     const h = await u.getHighEntropyValues(["architecture"]);
     if (h.architecture === "arm") {
-      document.getElementById("cta").href = "https://github.com/bilal8492/updraft/releases/latest/download/Updraft-win-arm64-setup.exe";
+      document.getElementById("cta").href = "https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-arm64-setup.exe";
       document.getElementById("cta-text").textContent = "Download for Windows on ARM";
+      document.getElementById("alt-label").textContent = "Intel or AMD PC?";
+      const alt = document.getElementById("alt-link");
+      alt.href = "https://github.com/bilal8492/upinstall/releases/latest/download/UpInstall-win-x64-setup.exe";
+      alt.textContent = "Download the x64 installer";
       const x64 = document.getElementById("dl-x64"), arm = document.getElementById("dl-arm");
       x64.classList.remove("recommended"); arm.classList.add("recommended");
       arm.parentNode.insertBefore(arm, x64);

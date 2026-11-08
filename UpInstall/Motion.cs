@@ -9,7 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.UI;
 
-namespace Updraft;
+namespace UpInstall;
 
 /// <summary>
 /// Small, reusable motion effects. They run on the composition layer, so they stay smooth while the UI thread is
@@ -25,7 +25,7 @@ public static class Motion
         catch { return true; }
     }
 
-    /// <summary>False when Windows "Animation effects" is off, or the user switched animations off in Updraft.</summary>
+    /// <summary>False when Windows "Animation effects" is off, or the user switched animations off in UpInstall.</summary>
     public static bool Enabled => SystemAllows && AppSettings.Current.Animations;
 
     private static Visual VisualOf(UIElement e) => ElementCompositionPreview.GetElementVisual(e);

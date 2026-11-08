@@ -11,7 +11,7 @@ using Windows.System;
 using Windows.UI;
 using DispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
-namespace Updraft;
+namespace UpInstall;
 
 // Everything that makes the window feel alive: status, toasts, the hero card, empty states, loading placeholders,
 // the floating selection bar, row hover actions and context menus.
@@ -112,7 +112,7 @@ public sealed partial class MainWindow
 
         // Screen readers hear the message too.
         FrameworkElementAutomationPeer.CreatePeerForElement(ToastText)?.RaiseNotificationEvent(
-            AutomationNotificationKind.Other, AutomationNotificationProcessing.ImportantMostRecent, message, "UpdraftToast");
+            AutomationNotificationKind.Other, AutomationNotificationProcessing.ImportantMostRecent, message, "UpInstallToast");
     }
 
     private void RestartToastTimer(int ms)
@@ -343,7 +343,7 @@ public sealed partial class MainWindow
                 else
                 {
                     (kind, glyph, title, body) = ("nohistory", "", "No history yet",
-                        "Installs, updates and uninstalls you run inside Updraft show up here, grouped by day.");
+                        "Installs, updates and uninstalls you run inside UpInstall show up here, grouped by day.");
                     (action, onAction) = ("Check for updates", () => Nav.SelectedItem = NavUp);
                 }
             }
@@ -354,7 +354,7 @@ public sealed partial class MainWindow
             if (WingetBar.IsOpen)
             {
                 (kind, glyph, title, body) = ("error", "", "Couldn't reach winget",
-                    "Updraft needs the Windows Package Manager. Get App Installer from the Microsoft Store, then try again.");
+                    "UpInstall needs the Windows Package Manager. Get App Installer from the Microsoft Store, then try again.");
                 (action, onAction) = ("Try again", () => _ = LoadAsync(force: true));
             }
             else if (total > 0)
