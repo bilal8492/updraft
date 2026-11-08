@@ -27,7 +27,7 @@ jobs:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
       PFX_B64: ${{ secrets.MSIX_PFX_BASE64 }}   # job-level so step `if:` conditions can see whether signing is set up
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
 
@@ -125,7 +125,7 @@ jobs:
       PFX_B64: ${{ secrets.MSIX_PFX_BASE64 }}
       PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.PFX_B64 != ''
         with:
           ref: ${{ env.TAG }}
@@ -178,7 +178,7 @@ jobs:
       STORE_PRODUCT_ID: ${{ vars.STORE_PRODUCT_ID || '9PMB0883K391' }}
       PC_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
 
