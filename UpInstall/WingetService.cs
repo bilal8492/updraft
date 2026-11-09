@@ -9,10 +9,45 @@ public static class WingetService
     /// <summary>Sample data and simulated runs instead of real winget calls (started with --demo).</summary>
     public static bool Demo { get; set; }
 
+    private static string? _wingetPath;
+
+    /// <summary>
+    /// Full path to winget.exe. A bare "winget" only works when the app-execution alias folder is on this
+    /// process's PATH, which isn't always so (elevated or packaged launches, trimmed environments), so look in
+    /// the usual places too and fall back to the bare name.
+    /// </summary>
+    public static string WingetPath => _wingetPath ??= FindWinget();
+
+    private static string FindWinget()
+    {
+        try
+        {
+            foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var f = Path.Combine(dir.Trim().Trim('"'), "winget.exe");
+                if (File.Exists(f)) return f;
+            }
+            var alias = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", "winget.exe");
+            if (File.Exists(alias)) return alias;
+
+            var pkgs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps");
+            if (Directory.Exists(pkgs))
+            {
+                var hit = Directory.EnumerateDirectories(pkgs, "Microsoft.DesktopAppInstaller_*_8wekyb3d8bbwe")
+                    .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
+                    .Select(d => Path.Combine(d, "winget.exe"))
+                    .FirstOrDefault(File.Exists);
+                if (hit != null) return hit;
+            }
+        }
+        catch { /* fall through to the bare name */ }
+        return "winget";
+    }
+
     public static async Task<string> RunAsync(params string[] args)
     {
         if (Demo) return await DemoData.RunAsync(args);
-        var psi = new ProcessStartInfo("winget")
+        var psi = new ProcessStartInfo(WingetPath)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -49,7 +84,7 @@ public static class WingetService
     public static async Task<(int Code, string Output)> RunCaptureAsync(params string[] args)
     {
         if (Demo) return await DemoData.RunCaptureAsync(args);
-        var psi = new ProcessStartInfo("winget")
+        var psi = new ProcessStartInfo(WingetPath)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -116,7 +151,7 @@ public static class WingetService
     public static async Task<int> RunPackageAsync(Pkg p, string mode, CancellationToken ct)
     {
         if (Demo) return await DemoData.RunPackageAsync(p, mode, ct, Handle);
-        var psi = new ProcessStartInfo("winget")
+        var psi = new ProcessStartInfo(WingetPath)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
